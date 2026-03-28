@@ -1,0 +1,256 @@
+/* ──────────────────────────────────────────────────────
+   Safely Popup · popup.css
+   Designed for elderly users: large text, high contrast,
+   plain layout, no clutter.
+   ────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;          /* minimum — do not go below this */
+  color: #1a1a1a;
+  background: #f9fafb;
+  width: 360px;
+  overflow-x: hidden;
+}
+
+/* ── Utility ─────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── States ──────────────────────────────────────────── */
+.state {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Loading ─────────────────────────────────────────── */
+.loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 52px 24px;
+  min-height: 200px;
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-label {
+  font-size: 17px;
+  color: #4b5563;
+}
+
+/* ── Idle ────────────────────────────────────────────── */
+.idle-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 40px 24px 32px;
+}
+
+.idle-wrap svg {
+  margin-bottom: 4px;
+}
+
+.idle-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.idle-body {
+  font-size: 16px;
+  color: #6b7280;
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+
+/* ── Verdict header ──────────────────────────────────── */
+.verdict-header {
+  padding: 18px 20px 16px;
+  color: #ffffff;
+  /* background-color set by JS */
+}
+
+.verdict-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  opacity: 0.85;
+  margin-bottom: 14px;
+}
+
+.verdict-header__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.verdict-header__icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.verdict-header__label {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.verdict-header__domain {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Reasons ─────────────────────────────────────────── */
+.reasons-section {
+  background: #ffffff;
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.reasons-section__title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #9ca3af;
+  margin-bottom: 12px;
+}
+
+.reasons-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reasons-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 16px;
+  color: #1f2937;
+  line-height: 1.45;
+}
+
+.reasons-list li::before {
+  content: '•';
+  font-size: 20px;
+  line-height: 1.1;
+  color: #d1d5db;
+  flex-shrink: 0;
+}
+
+/* ── Action ──────────────────────────────────────────── */
+.action-section {
+  background: #ffffff;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.action-section__text {
+  font-size: 17px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.5;
+}
+
+/* Tint action text by verdict severity */
+.action-section--safe .action-section__text   { color: #14532d; }
+.action-section--suspicious .action-section__text { color: #78350f; }
+.action-section--high-risk .action-section__text  { color: #7f1d1d; }
+
+/* ── Footer / buttons ────────────────────────────────── */
+.popup-footer {
+  background: #ffffff;
+  padding: 14px 20px 18px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Scan button ─────────────────────────────────────── */
+.btn-scan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.15s;
+  padding: 12px 28px;
+
+  /* Primary: green */
+  background: #27AE60;
+  color: #ffffff;
+}
+
+.btn-scan:hover {
+  filter: brightness(1.08);
+}
+
+.btn-scan:active {
+  filter: brightness(0.93);
+}
+
+/* Secondary variant — neutral */
+.btn-scan--secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1.5px solid #e5e7eb;
+}
+
+.btn-scan--secondary:hover {
+  background: #e5e7eb;
+  filter: none;
+}
+
+/* ── Error ───────────────────────────────────────────── */
+.error-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 44px 24px 36px;
+}
+
+.error-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.error-body {
+  font-size: 16px;
+  color: #6b7280;
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
