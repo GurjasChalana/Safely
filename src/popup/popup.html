@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Safely</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- ── Loading ──────────────────────────────────── -->
+    <div id="stateLoading" class="state">
+      <div class="loading-wrap">
+        <svg class="loading-spinner" width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="16" stroke="#e5e7eb" stroke-width="4"/>
+          <circle cx="20" cy="20" r="16" stroke="#27AE60" stroke-width="4"
+                  stroke-dasharray="25 75" stroke-linecap="round"/>
+        </svg>
+        <p class="loading-label">Checking this page&hellip;</p>
+      </div>
+    </div>
+
+    <!-- ── Idle ─────────────────────────────────────── -->
+    <div id="stateIdle" class="state hidden">
+      <div class="idle-wrap">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"
+                fill="#d1fae5" stroke="#6ee7b7" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <p class="idle-title">Ready to protect you</p>
+        <p class="idle-body">Press the button below to check<br>if this page is safe.</p>
+        <button class="btn-scan" id="scanNowBtn">
+          Check this page
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Result ───────────────────────────────────── -->
+    <div id="stateResult" class="state hidden">
+
+      <!-- Verdict header — coloured by JS -->
+      <div class="verdict-header" id="verdictHeader">
+        <div class="verdict-header__brand">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"
+                  fill="rgba(255,255,255,0.25)" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M9 12l2 2 4-4" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Safely</span>
+        </div>
+        <div class="verdict-header__status">
+          <span class="verdict-header__icon" id="verdictIcon" aria-hidden="true"></span>
+          <span class="verdict-header__label" id="verdictLabel"></span>
+        </div>
+        <div class="verdict-header__domain" id="verdictDomain"></div>
+      </div>
+
+      <!-- Reasons -->
+      <div class="reasons-section" id="reasonsSection">
+        <p class="reasons-section__title">What we found</p>
+        <ul class="reasons-list" id="reasonsList"></ul>
+      </div>
+
+      <!-- Action -->
+      <div class="action-section" id="actionSection">
+        <p class="action-section__text" id="actionText"></p>
+      </div>
+
+      <!-- Footer / re-scan -->
+      <div class="popup-footer">
+        <button class="btn-scan btn-scan--secondary" id="rescanBtn">
+          Scan Again
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── Error ─────────────────────────────────────── -->
+    <div id="stateError" class="state hidden">
+      <div class="error-wrap">
+        <p class="error-title">Could not check this page</p>
+        <p class="error-body">This might be a browser page that<br>cannot be scanned.</p>
+        <button class="btn-scan btn-scan--secondary" id="errorRescanBtn">Try Again</button>
+      </div>
+    </div>
+
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
