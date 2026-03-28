@@ -31,7 +31,9 @@ function runScan(): void {
     type: 'PAGE_SCANNED',
     assessment,
     pageSnippet: features.pageSnippet,
-  } satisfies SafelyMessage);
+  } satisfies SafelyMessage).catch(() => {
+    // Service worker was inactive — result is still shown from rule-based engine above
+  });
 }
 
 runScan();

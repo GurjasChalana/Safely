@@ -1,24 +1,12 @@
 // ──────────────────────────────────────────────────────
-// Safely Popup · popup.ts
+// Safely · popup.ts
 //
 // Reads RiskAssessment from chrome.storage.session
 // (written by the background service worker after a scan).
-//
-// Dev 2 integration surface:
-//   • Write { assessment, scannedUrl, scanStatus } to
-//     chrome.storage.session from your background script.
-//   • The popup listens for storage changes and re-renders
-//     automatically — no extra wiring needed.
+// Listens for storage changes and re-renders automatically.
 // ──────────────────────────────────────────────────────
 
-// ── Types ─────────────────────────────────────────────
-
-interface RiskAssessment {
-  verdict: 'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';
-  score: number;
-  reasons: string[];
-  action: string;
-}
+import type { RiskAssessment } from '../shared/types';
 
 // chrome.storage.session schema
 interface SessionData {
@@ -29,41 +17,6 @@ interface SessionData {
 
 type UIState = 'loading' | 'idle' | 'result' | 'error';
 
-// ── Mock fallback (dev only) ──────────────────────────
-// Change DEV_MOCK to preview different states when the
-// backend is not yet connected.
-const DEV_MOCK_STATE = 'highRisk' as const;
-
-const DEV_MOCKS: Record<string, RiskAssessment> = {
-  safe: {
-    verdict: 'SAFE',
-    score: 4,
-    reasons: [
-      'This is a well-known, trusted website',
-      'Your connection is secure and encrypted',
-      'No suspicious activity was detected',
-    ],
-    action: 'This page looks safe. You can continue browsing.',
-  },
-  suspicious: {
-    verdict: 'SUSPICIOUS',
-    score: 58,
-    reasons: [
-      'This page claims you have won a prize',
-      'This website was created very recently',
-    ],
-    action: 'Be careful. Do not enter your personal details on this page.',
-  },
-  highRisk: {
-    verdict: 'HIGH RISK',
-    score: 94,
-    reasons: [
-      'This page is pretending to be PayPal',
-      'You are being asked to enter your password',
-    ],
-    action: 'Do not enter any information. Close this tab immediately.',
-  },
-};
 
 // ── Verdict presentation config ───────────────────────
 
@@ -160,14 +113,10 @@ function triggerScan(): void {
       { type: 'SCAN_TAB', tabId: tab.id, url: tab.url },
       (response) => {
         if (chrome.runtime.lastError || !response) {
-          // Backend not wired yet — fall back to mock
-          console.warn('[Safely] No result from background — using mock data.');
-          setTimeout(() => {
-            const domain = (() => { try { return new URL(tab.url!).hostname; } catch { return tab.url ?? ''; } })();
-            renderResult(DEV_MOCKS[DEV_MOCK_STATE], domain);
-          }, 1000);
+          console.warn('[Safely] No response from background service worker.');
+          showState('error');
         }
-        // If backend is wired, result arrives via storage change listener below
+        // Result arrives via storage change listener below
       },
     );
   });

@@ -1,52 +1,60 @@
 // ──────────────────────────────────────────────────────
 // Safely · background/gemini.ts
 //
-// Uses Gemini to generate plain-English explanations of
-// why a page was flagged. Called after rule-based scoring
-// on SUSPICIOUS and HIGH RISK verdicts.
-//
-// The result enriches the banner reasons and provides
-// the voice script for ElevenLabs.
+// Two jobs:
+//   1. Second-opinion verdict for borderline pages
+//      (can upgrade SAFE → SUSPICIOUS or SUSPICIOUS → HIGH RISK,
+//       but never downgrades a HIGH RISK verdict)
+//   2. Plain-English explanations + voice script for ElevenLabs
 // ──────────────────────────────────────────────────────
 
 import { GEMINI_API_KEY } from '../config';
 
 const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 export interface GeminiEnrichment {
-  reasons: string[];   // max 3 plain-English reasons
-  action: string;      // one clear instruction
-  voiceText: string;   // calm 2–3 sentence spoken warning for ElevenLabs
+  verdict:   'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';  // second-opinion verdict
+  reasons:   string[];   // max 3 plain-English reasons
+  action:    string;     // one clear instruction
+  voiceText: string;     // calm 2–3 sentence spoken warning for ElevenLabs
 }
 
 export async function explainThreats(
-  signals: string[],
-  pageSnippet: string,
-  verdict: string,
+  signals:       string[],
+  pageSnippet:   string,
+  rulesVerdict:  string,
 ): Promise<GeminiEnrichment> {
   if (!GEMINI_API_KEY) {
-    console.warn('[Safely] Gemini API key not set — using fallback reasons.');
-    return fallback(verdict);
+    console.warn('[Safely] Gemini API key not set — using fallback.');
+    return fallback(rulesVerdict);
   }
 
   const prompt = `
-You are a safety assistant helping an elderly person understand why a webpage may be dangerous.
+You are a security expert reviewing a webpage for signs of phishing or scams.
+Your audience is an elderly person who may not be tech-savvy.
 
-The page was flagged as: ${verdict}
-Detected signals: ${signals.join(', ')}
-Page excerpt: "${pageSnippet.slice(0, 500)}"
+The rule-based engine flagged this page as: ${rulesVerdict}
+Signals detected by the rules engine: ${signals.length > 0 ? signals.join(', ') : 'none'}
+Page text excerpt: "${pageSnippet.slice(0, 600)}"
+
+Your job:
+1. Form your own independent verdict on whether this page is safe or dangerous.
+2. Write plain, calm explanations.
 
 Return a JSON object with exactly these fields:
-- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) explaining what is suspicious
-- "action": one clear sentence telling the user what to do right now
-- "voiceText": a calm 2–3 sentence spoken warning suitable for text-to-speech for an elderly person
+- "verdict": one of "SAFE", "SUSPICIOUS", or "HIGH RISK" — your independent assessment
+- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) explaining what looks suspicious, or why the page is safe
+- "action": one sentence telling the user what to do right now
+- "voiceText": a calm 2–3 sentence spoken warning or reassurance suitable for text-to-speech for an elderly person
 
-Rules:
+Rules for your response:
 - Use simple everyday language. No jargon.
 - Be calm and reassuring, not alarming.
-- Do not mention technical terms like "phishing", "malware", or "SSL".
+- Never use words like "phishing", "malware", or "SSL".
 - Do not start sentences with "I".
+- If the page looks safe, say so clearly and briefly.
+- If unsure, lean toward SUSPICIOUS rather than SAFE.
 `;
 
   try {
@@ -63,8 +71,8 @@ Rules:
     const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const parsed = JSON.parse(text) as GeminiEnrichment;
 
-    // Validate shape before returning
     if (
+      ['SAFE', 'SUSPICIOUS', 'HIGH RISK'].includes(parsed.verdict) &&
       Array.isArray(parsed.reasons) &&
       typeof parsed.action === 'string' &&
       typeof parsed.voiceText === 'string'
@@ -72,16 +80,17 @@ Rules:
       return parsed;
     }
 
-    return fallback(verdict);
+    return fallback(rulesVerdict);
   } catch (err) {
-    console.warn('[Safely] Gemini enrichment failed:', err);
-    return fallback(verdict);
+    console.warn('[Safely] Gemini call failed:', err);
+    return fallback(rulesVerdict);
   }
 }
 
 function fallback(verdict: string): GeminiEnrichment {
   if (verdict === 'HIGH RISK') {
     return {
+      verdict: 'HIGH RISK',
       reasons: [
         'This page may be pretending to be a trusted website.',
         'You are being asked to enter personal information.',
@@ -94,14 +103,23 @@ function fallback(verdict: string): GeminiEnrichment {
         'Please close this tab now.',
     };
   }
+  if (verdict === 'SUSPICIOUS') {
+    return {
+      verdict: 'SUSPICIOUS',
+      reasons: [
+        'This page has some unusual features.',
+        'Be careful before entering any personal details.',
+      ],
+      action: 'Be careful. Do not enter your personal details on this page.',
+      voiceText:
+        'This page looks suspicious. ' +
+        'Please be careful and do not enter any personal information.',
+    };
+  }
   return {
-    reasons: [
-      'This page has some unusual features.',
-      'Be careful before entering any personal details.',
-    ],
-    action: 'Be careful. Do not enter your personal details on this page.',
-    voiceText:
-      'This page looks suspicious. ' +
-      'Please be careful and do not enter any personal information.',
+    verdict: 'SAFE',
+    reasons: [],
+    action: 'This page looks safe. You can continue browsing.',
+    voiceText: 'This page appears to be safe.',
   };
 }
