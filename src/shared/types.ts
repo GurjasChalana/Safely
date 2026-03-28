@@ -21,6 +21,7 @@ export interface ExtractedFeatures {
   httpsEnabled: boolean;
   mismatchedLinks: boolean;
   excessivePopups: boolean;
+  suspiciousPath: boolean;  // URL path contains phishing-common segments
   pageSnippet: string; // first 500 chars of body text — sent to Gemini
 }
 

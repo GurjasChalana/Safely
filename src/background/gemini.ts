@@ -6,12 +6,14 @@
 //      (can upgrade SAFE → SUSPICIOUS or SUSPICIOUS → HIGH RISK,
 //       but never downgrades a HIGH RISK verdict)
 //   2. Plain-English explanations + voice script for ElevenLabs
+//
+// Uses Groq (llama-3.1-8b-instant) — OpenAI-compatible JSON mode.
 // ──────────────────────────────────────────────────────
 
-import { GEMINI_API_KEY } from '../config';
+import { GROQ_API_KEY } from '../config';
 
-const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL    = 'llama-3.1-8b-instant';
 
 export interface GeminiEnrichment {
   verdict:   'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';  // second-opinion verdict
@@ -25,13 +27,12 @@ export async function explainThreats(
   pageSnippet:   string,
   rulesVerdict:  string,
 ): Promise<GeminiEnrichment> {
-  if (!GEMINI_API_KEY) {
-    console.warn('[Safely] Gemini API key not set — using fallback.');
+  if (!GROQ_API_KEY) {
+    console.warn('[Safely] Groq API key not set — using fallback.');
     return fallback(rulesVerdict);
   }
 
-  const prompt = `
-You are a calm, friendly safety assistant talking directly to an elderly person browsing the web.
+  const prompt = `You are a calm, friendly safety assistant talking directly to an elderly person browsing the web.
 
 You have been given information about the page they are currently looking at:
 - Our safety engine rated it as: ${rulesVerdict}
@@ -63,20 +64,40 @@ Rules:
 - Never use words like "phishing", "malware", "SSL", or "credentials".
 - Do not start sentences with "I".
 - If unsure, lean toward SUSPICIOUS rather than SAFE.
-`;
+
+Return only valid JSON, no markdown or explanation.`;
 
   try {
-    const response = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' },
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        max_tokens: 400,
+        temperature: 0.3,
       }),
     });
 
-    const data = await response.json();
-    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const rawBody = await response.text();
+
+    if (!response.ok) {
+      console.warn(`[Safely] Groq enrichment HTTP ${response.status}:`, rawBody.slice(0, 200));
+      return fallback(rulesVerdict);
+    }
+
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      return fallback(rulesVerdict);
+    }
+
+    const text: string = (data.choices as any)?.[0]?.message?.content ?? '';
     const parsed = JSON.parse(text) as GeminiEnrichment;
 
     if (
@@ -90,7 +111,7 @@ Rules:
 
     return fallback(rulesVerdict);
   } catch (err) {
-    console.warn('[Safely] Gemini call failed:', err);
+    console.warn('[Safely] Groq enrichment failed:', err);
     return fallback(rulesVerdict);
   }
 }
