@@ -80,6 +80,8 @@ const SUSPICIOUS_TLDS = new Set([
   'date', 'faith', 'review', 'trade', 'stream',
   'science', 'party', 'racing', 'win', 'download',
   'accountant', 'loan', 'bid', 'webcam', 'men',
+  'info', 'online', 'site', 'biz', 'website',
+  'space', 'pw', 'cc', 'vip', 'live', 'club', 'pro',
 ]);
 
 // ═══════════════════════════════════════════════════════
@@ -134,10 +136,11 @@ export function extractFeatures(): ExtractedFeatures {
 
   // ── Security signals ──────────────────────────────────
   const httpsEnabled     = window.location.protocol === 'https:';
-  const suspiciousDomain = checkSuspiciousDomain(domain);
+  const suspiciousDomain  = checkSuspiciousDomain(domain);
   const fakeBrandKeywords = detectFakeBrands(domain, bodyText, document.title);
-  const mismatchedLinks  = detectMismatchedLinks(allLinks, domain);
-  const excessivePopups  = detectPageTraps();
+  const mismatchedLinks   = detectMismatchedLinks(allLinks, domain);
+  const excessivePopups   = detectPageTraps();
+  const suspiciousPath    = checkSuspiciousPath(pageUrl);
 
   return {
     domain,
@@ -152,6 +155,7 @@ export function extractFeatures(): ExtractedFeatures {
     httpsEnabled,
     mismatchedLinks,
     excessivePopups,
+    suspiciousPath,
     pageSnippet,
   };
 }
@@ -165,6 +169,9 @@ function checkSuspiciousDomain(domain: string): boolean {
 
   // Bare IP address
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(domain)) return true;
+
+  // Punycode / IDN homograph attack (xn-- encoded unicode lookalikes)
+  if (domain.includes('xn--')) return true;
 
   // Free/abused TLD
   if (SUSPICIOUS_TLDS.has(tld)) return true;
@@ -213,7 +220,8 @@ function checkSuspiciousDomain(domain: string): boolean {
 const SSO_BRANDS = new Set(['google', 'facebook', 'apple', 'instagram', 'twitter', 'linkedin']);
 
 function detectFakeBrands(domain: string, bodyText: string, title: string): string[] {
-  const combined = `${bodyText} ${title}`.toLowerCase();
+  const bodyLower  = bodyText.toLowerCase();
+  const titleLower = title.toLowerCase();
   const found: string[] = [];
 
   for (const [brand, realDomain] of Object.entries(BRAND_DOMAINS)) {
@@ -225,18 +233,40 @@ function detectFakeBrands(domain: string, bodyText: string, title: string): stri
 
     const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`\\b${escaped}\\b`, 'gi');
-    const occurrences = (combined.match(re) ?? []).length;
 
-    // SSO brands (google, apple etc.) appear everywhere as login buttons —
-    // only flag if they appear 3+ times (phishing pages repeat the brand heavily).
-    // All other brands flag on 2+ occurrences to filter incidental mentions.
-    const threshold = SSO_BRANDS.has(brand) ? 3 : 2;
-    if (occurrences >= threshold) {
-      found.push(brand);
+    if (SSO_BRANDS.has(brand)) {
+      // SSO brands (google, apple etc.) appear legitimately as login buttons —
+      // only flag on 3+ combined occurrences (phishing pages repeat them heavily).
+      const combined = `${bodyLower} ${titleLower}`;
+      if ((combined.match(re) ?? []).length >= 3) found.push(brand);
+    } else {
+      // For non-SSO brands: a single mention in <title> is a strong signal
+      // (phishing pages typically set the brand as the page title once).
+      // Also flag on 2+ occurrences anywhere in the page body.
+      const inTitle = re.test(titleLower);
+      re.lastIndex = 0;
+      const bodyCount = (bodyLower.match(re) ?? []).length;
+      if (inTitle || bodyCount >= 2) found.push(brand);
     }
   }
 
   return found;
+}
+
+// ── Suspicious URL path segments ─────────────────────
+// Phishing pages commonly use paths like /login, /secure,
+// /verify, /account to appear legitimate.
+
+const SUSPICIOUS_PATH_RE =
+  /\/(login|signin|sign-in|verify|verification|secure|account|update|confirm|validate|auth|webscr|wp-admin|banking|support)\b/i;
+
+function checkSuspiciousPath(url: string): boolean {
+  try {
+    const path = new URL(url).pathname;
+    return SUSPICIOUS_PATH_RE.test(path);
+  } catch {
+    return false;
+  }
 }
 
 // ── Mismatched / disguised links ─────────────────────
@@ -398,6 +428,27 @@ export function scoreFeatures(features: ExtractedFeatures): RiskAssessment {
     }
   }
 
+  // ── Login form — credential harvesting form (+10) ─────
+  // Only score when not already caught by suspicious-domain or fake-brand combos
+  // to avoid double-counting. Nudges borderline pages into SUSPICIOUS.
+  if (
+    features.hasLoginForm &&
+    !features.suspiciousDomain &&
+    features.fakeBrandKeywords.length === 0
+  ) {
+    score += 10;
+    triggeredSignals.push('loginForm');
+    if (!reasons.some(r => r.includes('password'))) {
+      reasons.push('This page has a login form that could be collecting your credentials.');
+    }
+  }
+
+  // ── Suspicious URL path (+10) ─────────────────────────
+  if (features.suspiciousPath) {
+    score += 10;
+    triggeredSignals.push('suspiciousPath');
+  }
+
   // ── Payment field (+10) ───────────────────────────────
   if (features.hasPaymentField) {
     score += 10;
@@ -453,6 +504,8 @@ export function scoreFeatures(features: ExtractedFeatures): RiskAssessment {
     { signal: 'No HTTPS',                       weight: 15,  triggered: !features.httpsEnabled },
     { signal: 'Mismatched/disguised links',     weight: 15,  triggered: features.mismatchedLinks },
     { signal: 'OTP field',                      weight: 10,  triggered: features.hasOTPField },
+    { signal: 'Login form (no other signals)',  weight: 10,  triggered: features.hasLoginForm && !features.suspiciousDomain && features.fakeBrandKeywords.length === 0 },
+    { signal: 'Suspicious URL path',            weight: 10,  triggered: features.suspiciousPath },
     { signal: 'Payment/card field',             weight: 10,  triggered: features.hasPaymentField },
     { signal: 'Page traps (beforeunload)',       weight: 10,  triggered: features.excessivePopups },
   ]);

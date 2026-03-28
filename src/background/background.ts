@@ -110,10 +110,10 @@ async function handleScan(
   // Step 2 — Save initial rule-based result so popup renders without waiting for Gemini
   await saveAssessment(final, url);
 
-  // Step 3 — Gemini second opinion
-  // Runs for any page scoring ≥ 20 (borderline or above) so AI can catch
+  // Step 3 — Groq second opinion
+  // Runs for any page scoring ≥ 10 (borderline or above) so AI can catch
   // what the rules miss, and can upgrade a SAFE verdict if needed.
-  if (final.score >= 20) {
+  if (final.score >= 10) {
     const enriched = await explainThreats(
       final.triggeredSignals,
       pageSnippet,
