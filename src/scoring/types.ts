@@ -30,7 +30,8 @@ export interface ExtractedFeatures {
 
 export interface RiskAssessment {
   verdict: "SAFE" | "SUSPICIOUS" | "HIGH RISK";
-  score: number;
+  score: number;               // raw score (used internally for thresholds)
+  displayScore: number;        // normalized 0–100 (shown in UI)
   reasons: string[];           // max 3, plain English
   action: string;              // one clear instruction sentence
   triggeredSignals: SignalKey[];

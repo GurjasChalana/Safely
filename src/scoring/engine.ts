@@ -15,9 +15,10 @@ const SIGNAL_WEIGHTS: Record<SignalKey, number> = {
   LONG_URL_PATH:            10,
 };
 
-const THRESHOLD_SAFE       = 30; // 0–30  → SAFE
-const THRESHOLD_SUSPICIOUS = 59; // 31–59 → SUSPICIOUS
-                                  // 60+   → HIGH RISK
+const MAX_POSSIBLE_SCORE   = 245; // sum of all weights — used for normalization
+const THRESHOLD_SAFE       = 30;  // 0–30  → SAFE
+const THRESHOLD_SUSPICIOUS = 59;  // 31–59 → SUSPICIOUS
+                                   // 60+   → HIGH RISK
 
 // ── Plain-English reasons ─────────────────────────────────────
 const SIGNAL_REASONS: Record<SignalKey, string> = {
@@ -64,11 +65,12 @@ const VERDICT_ACTIONS: Record<RiskAssessment["verdict"], string> = {
 export function scoreFeatures(features: ExtractedFeatures): RiskAssessment {
   const triggeredSignals = detectTriggeredSignals(features);
   const score = calculateScore(triggeredSignals);
+  const displayScore = Math.min(Math.round((score / MAX_POSSIBLE_SCORE) * 100), 100);
   const verdict = deriveVerdict(score);
   const reasons = selectTopReasons(triggeredSignals, 3);
   const action = VERDICT_ACTIONS[verdict];
 
-  return { verdict, score, reasons, action, triggeredSignals };
+  return { verdict, score, displayScore, reasons, action, triggeredSignals };
 }
 
 // ------------------------------------------------------------
