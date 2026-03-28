@@ -14,6 +14,7 @@ import { saveAssessment, setScanStatus } from '../shared/storage';
 import { checkDomain }       from './safebrowsing';
 import { explainThreats }    from './gemini';
 import { playVoiceWarning }  from './elevenlabs';
+import { answerQuestion } from './convai';
 
 // ── Helpers ───────────────────────────────────────────
 
@@ -37,6 +38,23 @@ chrome.runtime.onMessage.addListener(
       const url   = sender.tab?.url ?? message.assessment.domain;
       handleScan(tabId, url, message.assessment, message.pageSnippet)
         .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    // User asked a question via the banner chat
+    if (message.type === 'ASK_QUESTION') {
+      const tabId = sender.tab?.id;
+      answerQuestion(message.question, message.assessment, message.history)
+        .then(async answer => {
+          // Send text answer back to content script
+          if (tabId) {
+            sendToTab(tabId, { type: 'QUESTION_ANSWER', answer }).catch(() => {});
+          }
+          // Speak the answer via ElevenLabs TTS
+          await playVoiceWarning(answer, tabId);
+          sendResponse({ ok: true });
+        })
         .catch(() => sendResponse({ ok: false }));
       return true;
     }

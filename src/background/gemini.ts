@@ -11,7 +11,7 @@
 import { GEMINI_API_KEY } from '../config';
 
 const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export interface GeminiEnrichment {
   verdict:   'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';  // second-opinion verdict
@@ -31,29 +31,37 @@ export async function explainThreats(
   }
 
   const prompt = `
-You are a security expert reviewing a webpage for signs of phishing or scams.
-Your audience is an elderly person who may not be tech-savvy.
+You are a calm, friendly safety assistant talking directly to an elderly person browsing the web.
 
-The rule-based engine flagged this page as: ${rulesVerdict}
-Signals detected by the rules engine: ${signals.length > 0 ? signals.join(', ') : 'none'}
-Page text excerpt: "${pageSnippet.slice(0, 600)}"
+You have been given information about the page they are currently looking at:
+- Our safety engine rated it as: ${rulesVerdict}
+- Specific warning signals found: ${signals.length > 0 ? signals.join(', ') : 'none'}
+- What the page actually says (excerpt): "${pageSnippet.slice(0, 600)}"
 
-Your job:
-1. Form your own independent verdict on whether this page is safe or dangerous.
-2. Write plain, calm explanations.
+Your job is to:
+1. Decide whether this page is truly safe, suspicious, or dangerous.
+2. Write a short spoken message that feels like a real person gently talking to them — not a formal announcement.
 
 Return a JSON object with exactly these fields:
-- "verdict": one of "SAFE", "SUSPICIOUS", or "HIGH RISK" — your independent assessment
-- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) explaining what looks suspicious, or why the page is safe
-- "action": one sentence telling the user what to do right now
-- "voiceText": a calm 2–3 sentence spoken warning or reassurance suitable for text-to-speech for an elderly person
+- "verdict": one of "SAFE", "SUSPICIOUS", or "HIGH RISK"
+- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) for the visual overlay
+- "action": one sentence telling them what to do right now
+- "voiceText": a natural, conversational 2–3 sentence message spoken directly to the person.
+  The voiceText must:
+  - Reference something specific about THIS page (what it's asking for, what it claims, who it pretends to be)
+  - Sound like a caring friend warning them, not a security alert
+  - Use "you" and "this page" naturally
+  - Be calm and gentle — never panicked
+  - End with one clear thing they should do
 
-Rules for your response:
-- Use simple everyday language. No jargon.
-- Be calm and reassuring, not alarming.
-- Never use words like "phishing", "malware", or "SSL".
+Examples of good voiceText tone:
+  "Hey, just a heads up — this page is asking for your bank password, but it doesn't look like your real bank's website. It's probably safer to close this tab and go directly to your bank's app instead."
+  "This page looks fine. It's a well-known website and nothing unusual was found. You're safe to continue."
+
+Rules:
+- Simple everyday language only. No jargon.
+- Never use words like "phishing", "malware", "SSL", or "credentials".
 - Do not start sentences with "I".
-- If the page looks safe, say so clearly and briefly.
 - If unsure, lean toward SUSPICIOUS rather than SAFE.
 `;
 

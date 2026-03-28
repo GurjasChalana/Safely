@@ -7,6 +7,7 @@
 // ──────────────────────────────────────────────────────
 
 import type { RiskAssessment } from '../shared/types';
+import { openConversation, closeConversation, isActive } from './conversation';
 
 const BANNER_ID   = 'safely-warning-banner';
 const BACKDROP_ID = 'safely-overlay-backdrop';
@@ -105,6 +106,23 @@ export function showBanner(assessment: RiskAssessment): void {
   actionBtn.textContent = assessment.action;
   banner.appendChild(actionBtn);
 
+  // Ask Safely footer — looks like a natural card footer, not a button
+  const askBtn = document.createElement('button');
+  askBtn.className = 'safely-banner__ask-btn';
+  askBtn.innerHTML = micIcon() + ' Ask Safely anything';
+  askBtn.addEventListener('click', () => {
+    if (isActive()) {
+      closeConversation(banner);
+      askBtn.innerHTML = micIcon() + ' Ask Safely anything';
+      askBtn.classList.remove('safely-banner__ask-btn--active');
+    } else {
+      openConversation(banner, assessment);
+      askBtn.innerHTML = '✕&nbsp;&nbsp;End conversation';
+      askBtn.classList.add('safely-banner__ask-btn--active');
+    }
+  });
+  banner.appendChild(askBtn);
+
   // ── Inject ────────────────────────────────────────
   document.body.appendChild(banner);
 
@@ -121,6 +139,19 @@ export function hideBanner(): void {
 }
 
 // ── Internal helpers ──────────────────────────────────
+
+function micIcon(): string {
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex-shrink:0">
+    <rect x="9" y="2" width="6" height="11" rx="3" fill="currentColor"/>
+    <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" fill="none"/>
+    <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round"/>
+    <line x1="9" y1="21" x2="15" y2="21" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
 
 function animateDismiss(banner: HTMLElement): void {
   banner.classList.remove('safely-banner--visible');

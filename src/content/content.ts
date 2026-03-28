@@ -14,6 +14,7 @@
 
 import { extractFeatures, scoreFeatures } from '../scoring/engine';
 import { showBanner, hideBanner } from './banner';
+import { showAnswer } from './conversation';
 import { SafelyMessage } from '../shared/messages';
 
 // ── Auto-scan on page load ────────────────────────────
@@ -56,6 +57,11 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'DO_SCAN') {
       runScan();
+      sendResponse({ ok: true });
+    }
+
+    if (message.type === 'QUESTION_ANSWER') {
+      showAnswer(message.answer);
       sendResponse({ ok: true });
     }
 
