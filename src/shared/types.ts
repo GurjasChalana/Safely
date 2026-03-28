@@ -7,7 +7,7 @@
 // ──────────────────────────────────────────────────────
 
 // Signals extracted from the DOM by the content script.
-// Dev 1 owns the extraction logic in src/scoring/extractor.ts
+// Extraction + scoring logic lives in src/scoring/engine.ts
 export interface ExtractedFeatures {
   domain: string;
   pageUrl: string;
@@ -25,7 +25,6 @@ export interface ExtractedFeatures {
 }
 
 // Output of the scoring engine and the value stored in chrome.storage.session.
-// Dev 1 owns the scoring logic in src/scoring/engine.ts
 export interface RiskAssessment {
   verdict: 'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';
   score: number;          // 0–100

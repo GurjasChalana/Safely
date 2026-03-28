@@ -14,6 +14,7 @@
 
 import { extractFeatures, scoreFeatures } from '../scoring/engine';
 import { showBanner, hideBanner } from './banner';
+import { showAnswer } from './conversation';
 import { SafelyMessage } from '../shared/messages';
 
 // ── Auto-scan on page load ────────────────────────────
@@ -31,7 +32,9 @@ function runScan(): void {
     type: 'PAGE_SCANNED',
     assessment,
     pageSnippet: features.pageSnippet,
-  } satisfies SafelyMessage);
+  } satisfies SafelyMessage).catch(() => {
+    // Service worker was inactive — result is still shown from rule-based engine above
+  });
 }
 
 runScan();
@@ -54,6 +57,11 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'DO_SCAN') {
       runScan();
+      sendResponse({ ok: true });
+    }
+
+    if (message.type === 'QUESTION_ANSWER') {
+      showAnswer(message.answer);
       sendResponse({ ok: true });
     }
 

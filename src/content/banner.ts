@@ -1,127 +1,132 @@
 // ──────────────────────────────────────────────────────
 // Safely · banner.ts
 //
-// Injects a full-width warning banner into the page.
-//
-// Dev 2 integration surface:
-//   import { showBanner, hideBanner } from './banner';
-//   showBanner(assessment);   ← call after scan completes
-//   hideBanner();             ← call if user navigates away
-//
-// Or send a message from the background:
-//   chrome.tabs.sendMessage(tabId, { type: 'SHOW_BANNER', assessment });
+// Injects a floating overlay card into the page.
+//   HIGH RISK  → centered modal with dark backdrop
+//   SUSPICIOUS → bottom-right dismissible card
 // ──────────────────────────────────────────────────────
 
-interface RiskAssessment {
-  verdict: 'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';
-  score: number;
-  reasons: string[];
-  action: string;
-}
+import type { RiskAssessment } from '../shared/types';
+import { openConversation, closeConversation, isActive } from './conversation';
 
-const BANNER_ID = 'safely-warning-banner';
-const SPACER_ID = 'safely-warning-spacer';
-
-// ── Message listener (called from background) ─────────
-
-chrome.runtime.onMessage.addListener(
-  (message: { type: string; assessment?: RiskAssessment }, _sender, sendResponse) => {
-    if (message.type === 'SHOW_BANNER' && message.assessment) {
-      showBanner(message.assessment);
-      sendResponse({ ok: true });
-    }
-    if (message.type === 'HIDE_BANNER') {
-      hideBanner();
-      sendResponse({ ok: true });
-    }
-    return true;
-  },
-);
+const BANNER_ID   = 'safely-warning-banner';
+const BACKDROP_ID = 'safely-overlay-backdrop';
 
 // ── Public API ────────────────────────────────────────
 
 export function showBanner(assessment: RiskAssessment): void {
-  hideBanner(); // remove any existing banner first
+  hideBanner();
 
-  if (assessment.verdict === 'SAFE') return; // no banner for safe pages
+  if (assessment.verdict === 'SAFE') return;
 
-  const isHighRisk   = assessment.verdict === 'HIGH RISK';
-  const isDismissible = !isHighRisk; // SUSPICIOUS = dismissible, HIGH RISK = not
-  const topReasons   = assessment.reasons.slice(0, 2);
+  const isHighRisk    = assessment.verdict === 'HIGH RISK';
+  const isDismissible = !isHighRisk;
+  const topReasons    = assessment.reasons.slice(0, 3);
 
-  // ── Build banner element ──────────────────────────
+  // ── Backdrop (HIGH RISK only) ─────────────────────
+  if (isHighRisk) {
+    const backdrop = document.createElement('div');
+    backdrop.id = BACKDROP_ID;
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(() => backdrop.classList.add('safely-backdrop--visible'));
+  }
+
+  // ── Banner card ───────────────────────────────────
   const banner = document.createElement('div');
   banner.id = BANNER_ID;
-  banner.setAttribute('role', 'alert');
+  banner.setAttribute('role', 'alertdialog');
   banner.setAttribute('aria-live', 'assertive');
+  banner.setAttribute('aria-modal', isHighRisk ? 'true' : 'false');
   banner.setAttribute('data-verdict', assessment.verdict);
 
-  // Top row: brand + verdict pill + optional dismiss
-  const topRow = document.createElement('div');
-  topRow.className = 'safely-banner__top';
-
-  const brandEl = document.createElement('span');
-  brandEl.className = 'safely-banner__brand';
-  brandEl.setAttribute('aria-hidden', 'true');
-  brandEl.textContent = '⚠ Safely Warning';
-
-  const verdictPill = document.createElement('span');
-  verdictPill.className = 'safely-banner__pill';
-  verdictPill.textContent = isHighRisk ? 'HIGH RISK' : 'SUSPICIOUS';
-
-  topRow.appendChild(brandEl);
-  topRow.appendChild(verdictPill);
-
+  // Dismiss button (SUSPICIOUS only — top-right corner)
   if (isDismissible) {
     const dismissBtn = document.createElement('button');
     dismissBtn.className = 'safely-banner__dismiss';
     dismissBtn.setAttribute('aria-label', 'Dismiss this warning');
     dismissBtn.textContent = '✕';
     dismissBtn.addEventListener('click', () => animateDismiss(banner));
-    topRow.appendChild(dismissBtn);
+    banner.appendChild(dismissBtn);
   }
 
+  // Icon row: shield + app name + verdict pill
+  const iconRow = document.createElement('div');
+  iconRow.className = 'safely-banner__icon-row';
+
+  const shield = document.createElement('span');
+  shield.className = 'safely-banner__shield';
+  shield.setAttribute('aria-hidden', 'true');
+  shield.textContent = isHighRisk ? '🛡️' : '⚠️';
+
+  const brandBlock = document.createElement('div');
+  brandBlock.className = 'safely-banner__brand-block';
+
+  const appName = document.createElement('span');
+  appName.className = 'safely-banner__app-name';
+  appName.textContent = 'Safely';
+
+  const pill = document.createElement('span');
+  pill.className = 'safely-banner__pill';
+  pill.textContent = isHighRisk ? 'HIGH RISK' : 'SUSPICIOUS';
+
+  brandBlock.appendChild(appName);
+  brandBlock.appendChild(pill);
+  iconRow.appendChild(shield);
+  iconRow.appendChild(brandBlock);
+  banner.appendChild(iconRow);
+
+  // Divider
+  const divider = document.createElement('hr');
+  divider.className = 'safely-banner__divider';
+  banner.appendChild(divider);
+
   // Headline
-  const headlineEl = document.createElement('p');
-  headlineEl.className = 'safely-banner__headline';
-  headlineEl.textContent = isHighRisk
+  const headline = document.createElement('p');
+  headline.className = 'safely-banner__headline';
+  headline.textContent = isHighRisk
     ? 'Warning: This page may be a scam'
     : 'This page looks suspicious';
+  banner.appendChild(headline);
 
   // Reasons list
-  const reasonsEl = document.createElement('ul');
-  reasonsEl.className = 'safely-banner__reasons';
-  topReasons.forEach(reason => {
-    const li = document.createElement('li');
-    li.textContent = reason;
-    reasonsEl.appendChild(li);
+  if (topReasons.length > 0) {
+    const reasonsEl = document.createElement('ul');
+    reasonsEl.className = 'safely-banner__reasons';
+    topReasons.forEach(reason => {
+      const li = document.createElement('li');
+      li.textContent = reason;
+      reasonsEl.appendChild(li);
+    });
+    banner.appendChild(reasonsEl);
+  }
+
+  // Action button
+  const actionBtn = document.createElement('div');
+  actionBtn.className = 'safely-banner__action-btn';
+  actionBtn.textContent = assessment.action;
+  banner.appendChild(actionBtn);
+
+  // Ask Safely footer — looks like a natural card footer, not a button
+  const askBtn = document.createElement('button');
+  askBtn.className = 'safely-banner__ask-btn';
+  askBtn.innerHTML = micIcon() + ' Ask Safely anything';
+  askBtn.addEventListener('click', () => {
+    if (isActive()) {
+      closeConversation(banner);
+      askBtn.innerHTML = micIcon() + ' Ask Safely anything';
+      askBtn.classList.remove('safely-banner__ask-btn--active');
+    } else {
+      openConversation(banner, assessment);
+      askBtn.innerHTML = '✕&nbsp;&nbsp;End conversation';
+      askBtn.classList.add('safely-banner__ask-btn--active');
+    }
   });
+  banner.appendChild(askBtn);
 
-  // Action
-  const actionEl = document.createElement('p');
-  actionEl.className = 'safely-banner__action';
-  actionEl.textContent = assessment.action;
+  // ── Inject ────────────────────────────────────────
+  document.body.appendChild(banner);
 
-  banner.appendChild(topRow);
-  banner.appendChild(headlineEl);
-  if (topReasons.length > 0) banner.appendChild(reasonsEl);
-  banner.appendChild(actionEl);
-
-  // ── Inject into page ──────────────────────────────
-  // Insert as first child of body; add a spacer so
-  // fixed/absolute page headers don't cover it.
-  document.body.insertBefore(banner, document.body.firstChild);
-
-  // Spacer pushes page content down by banner height
   requestAnimationFrame(() => {
-    const h = banner.getBoundingClientRect().height;
-    const spacer = document.createElement('div');
-    spacer.id = SPACER_ID;
-    spacer.style.height = `${h}px`;
-    spacer.style.flexShrink = '0';
-    document.body.insertBefore(spacer, banner.nextSibling);
-
-    // Fade in
     requestAnimationFrame(() => {
       banner.classList.add('safely-banner--visible');
     });
@@ -130,21 +135,26 @@ export function showBanner(assessment: RiskAssessment): void {
 
 export function hideBanner(): void {
   document.getElementById(BANNER_ID)?.remove();
-  document.getElementById(SPACER_ID)?.remove();
+  document.getElementById(BACKDROP_ID)?.remove();
 }
 
 // ── Internal helpers ──────────────────────────────────
 
+function micIcon(): string {
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex-shrink:0">
+    <rect x="9" y="2" width="6" height="11" rx="3" fill="currentColor"/>
+    <path d="M5 10a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" fill="none"/>
+    <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round"/>
+    <line x1="9" y1="21" x2="15" y2="21" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
+
 function animateDismiss(banner: HTMLElement): void {
   banner.classList.remove('safely-banner--visible');
   banner.classList.add('safely-banner--exit');
-  const spacer = document.getElementById(SPACER_ID);
-  if (spacer) {
-    spacer.style.transition = 'height 0.25s ease';
-    spacer.style.height = '0';
-  }
-  setTimeout(() => {
-    banner.remove();
-    spacer?.remove();
-  }, 260);
+  setTimeout(() => banner.remove(), 220);
 }

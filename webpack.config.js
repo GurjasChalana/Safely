@@ -34,9 +34,8 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        // popup HTML co-located with popup.js in dist/
-        { from: 'src/popup/popup.html',   to: 'popup.html' },
-        // banner CSS stays a plain stylesheet (not bundled)
+        { from: 'src/popup/popup.html',    to: 'popup.html' },
+        { from: 'src/popup/popup.css',     to: 'popup.css' },
         { from: 'src/content/overlay.css', to: 'overlay.css' },
       ],
     }),

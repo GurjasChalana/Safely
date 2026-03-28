@@ -10,6 +10,12 @@
 
 import { RiskAssessment } from './types';
 
+// One turn in a multi-turn Gemini conversation
+export interface ConvTurn {
+  role: 'user' | 'model';
+  text: string;
+}
+
 export type SafelyMessage =
   // Content script → service worker: page has been scanned
   | { type: 'PAGE_SCANNED'; assessment: RiskAssessment; pageSnippet: string }
@@ -24,4 +30,10 @@ export type SafelyMessage =
   | { type: 'DO_SCAN' }
 
   // Service worker → content script: hide the banner
-  | { type: 'HIDE_BANNER' };
+  | { type: 'HIDE_BANNER' }
+
+  // Content script → service worker: user asked a question via the banner chat
+  | { type: 'ASK_QUESTION'; question: string; assessment: RiskAssessment; history: ConvTurn[] }
+
+  // Service worker → content script: Gemini's answer (text only — audio via TTS)
+  | { type: 'QUESTION_ANSWER'; answer: string };

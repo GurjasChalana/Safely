@@ -1,12 +1,11 @@
 // ──────────────────────────────────────────────────────
 // Safely · background/gemini.ts
 //
-// Uses Gemini to generate plain-English explanations of
-// why a page was flagged. Called after rule-based scoring
-// on SUSPICIOUS and HIGH RISK verdicts.
-//
-// The result enriches the banner reasons and provides
-// the voice script for ElevenLabs.
+// Two jobs:
+//   1. Second-opinion verdict for borderline pages
+//      (can upgrade SAFE → SUSPICIOUS or SUSPICIOUS → HIGH RISK,
+//       but never downgrades a HIGH RISK verdict)
+//   2. Plain-English explanations + voice script for ElevenLabs
 // ──────────────────────────────────────────────────────
 
 import { GEMINI_API_KEY } from '../config';
@@ -15,38 +14,55 @@ const ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export interface GeminiEnrichment {
-  reasons: string[];   // max 3 plain-English reasons
-  action: string;      // one clear instruction
-  voiceText: string;   // calm 2–3 sentence spoken warning for ElevenLabs
+  verdict:   'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';  // second-opinion verdict
+  reasons:   string[];   // max 3 plain-English reasons
+  action:    string;     // one clear instruction
+  voiceText: string;     // calm 2–3 sentence spoken warning for ElevenLabs
 }
 
 export async function explainThreats(
-  signals: string[],
-  pageSnippet: string,
-  verdict: string,
+  signals:       string[],
+  pageSnippet:   string,
+  rulesVerdict:  string,
 ): Promise<GeminiEnrichment> {
   if (!GEMINI_API_KEY) {
-    console.warn('[Safely] Gemini API key not set — using fallback reasons.');
-    return fallback(verdict);
+    console.warn('[Safely] Gemini API key not set — using fallback.');
+    return fallback(rulesVerdict);
   }
 
   const prompt = `
-You are a safety assistant helping an elderly person understand why a webpage may be dangerous.
+You are a calm, friendly safety assistant talking directly to an elderly person browsing the web.
 
-The page was flagged as: ${verdict}
-Detected signals: ${signals.join(', ')}
-Page excerpt: "${pageSnippet.slice(0, 500)}"
+You have been given information about the page they are currently looking at:
+- Our safety engine rated it as: ${rulesVerdict}
+- Specific warning signals found: ${signals.length > 0 ? signals.join(', ') : 'none'}
+- What the page actually says (excerpt): "${pageSnippet.slice(0, 600)}"
+
+Your job is to:
+1. Decide whether this page is truly safe, suspicious, or dangerous.
+2. Write a short spoken message that feels like a real person gently talking to them — not a formal announcement.
 
 Return a JSON object with exactly these fields:
-- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) explaining what is suspicious
-- "action": one clear sentence telling the user what to do right now
-- "voiceText": a calm 2–3 sentence spoken warning suitable for text-to-speech for an elderly person
+- "verdict": one of "SAFE", "SUSPICIOUS", or "HIGH RISK"
+- "reasons": array of exactly 3 short plain-English sentences (max 15 words each) for the visual overlay
+- "action": one sentence telling them what to do right now
+- "voiceText": a natural, conversational 2–3 sentence message spoken directly to the person.
+  The voiceText must:
+  - Reference something specific about THIS page (what it's asking for, what it claims, who it pretends to be)
+  - Sound like a caring friend warning them, not a security alert
+  - Use "you" and "this page" naturally
+  - Be calm and gentle — never panicked
+  - End with one clear thing they should do
+
+Examples of good voiceText tone:
+  "Hey, just a heads up — this page is asking for your bank password, but it doesn't look like your real bank's website. It's probably safer to close this tab and go directly to your bank's app instead."
+  "This page looks fine. It's a well-known website and nothing unusual was found. You're safe to continue."
 
 Rules:
-- Use simple everyday language. No jargon.
-- Be calm and reassuring, not alarming.
-- Do not mention technical terms like "phishing", "malware", or "SSL".
+- Simple everyday language only. No jargon.
+- Never use words like "phishing", "malware", "SSL", or "credentials".
 - Do not start sentences with "I".
+- If unsure, lean toward SUSPICIOUS rather than SAFE.
 `;
 
   try {
@@ -63,8 +79,8 @@ Rules:
     const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     const parsed = JSON.parse(text) as GeminiEnrichment;
 
-    // Validate shape before returning
     if (
+      ['SAFE', 'SUSPICIOUS', 'HIGH RISK'].includes(parsed.verdict) &&
       Array.isArray(parsed.reasons) &&
       typeof parsed.action === 'string' &&
       typeof parsed.voiceText === 'string'
@@ -72,16 +88,17 @@ Rules:
       return parsed;
     }
 
-    return fallback(verdict);
+    return fallback(rulesVerdict);
   } catch (err) {
-    console.warn('[Safely] Gemini enrichment failed:', err);
-    return fallback(verdict);
+    console.warn('[Safely] Gemini call failed:', err);
+    return fallback(rulesVerdict);
   }
 }
 
 function fallback(verdict: string): GeminiEnrichment {
   if (verdict === 'HIGH RISK') {
     return {
+      verdict: 'HIGH RISK',
       reasons: [
         'This page may be pretending to be a trusted website.',
         'You are being asked to enter personal information.',
@@ -94,14 +111,23 @@ function fallback(verdict: string): GeminiEnrichment {
         'Please close this tab now.',
     };
   }
+  if (verdict === 'SUSPICIOUS') {
+    return {
+      verdict: 'SUSPICIOUS',
+      reasons: [
+        'This page has some unusual features.',
+        'Be careful before entering any personal details.',
+      ],
+      action: 'Be careful. Do not enter your personal details on this page.',
+      voiceText:
+        'This page looks suspicious. ' +
+        'Please be careful and do not enter any personal information.',
+    };
+  }
   return {
-    reasons: [
-      'This page has some unusual features.',
-      'Be careful before entering any personal details.',
-    ],
-    action: 'Be careful. Do not enter your personal details on this page.',
-    voiceText:
-      'This page looks suspicious. ' +
-      'Please be careful and do not enter any personal information.',
+    verdict: 'SAFE',
+    reasons: [],
+    action: 'This page looks safe. You can continue browsing.',
+    voiceText: 'This page appears to be safe.',
   };
 }
