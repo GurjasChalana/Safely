@@ -1,0 +1,394 @@
+/* ──────────────────────────────────────────────────────
+   Safely · overlay.css
+   Floating overlay card styles.
+
+   HIGH RISK  → centered modal with dark backdrop
+   SUSPICIOUS → bottom-right floating card (dismissible)
+
+   All rules scoped to #safely-overlay-backdrop or
+   #safely-warning-banner to avoid colliding with page styles.
+   ────────────────────────────────────────────────────── */
+
+/* ── Backdrop (HIGH RISK only) ───────────────────────── */
+#safely-overlay-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
+  z-index: 999998 !important;
+  opacity: 0 !important;
+  transition: opacity 0.25s ease !important;
+}
+
+#safely-overlay-backdrop.safely-backdrop--visible {
+  opacity: 1 !important;
+}
+
+/* ── Base card ───────────────────────────────────────── */
+#safely-warning-banner {
+  position: fixed !important;
+  z-index: 999999 !important;
+  font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+  border-radius: 16px !important;
+  padding: 24px 28px 22px !important;
+  max-width: 420px !important;
+  width: calc(100vw - 40px) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+
+  /* Entry animation */
+  opacity: 0 !important;
+  transform: scale(0.92) translateY(12px) !important;
+  transition: opacity 0.25s ease, transform 0.25s ease !important;
+}
+
+#safely-warning-banner.safely-banner--visible {
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+}
+
+#safely-warning-banner.safely-banner--exit {
+  opacity: 0 !important;
+  transform: scale(0.92) translateY(12px) !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+
+/* ── HIGH RISK — centered modal ──────────────────────── */
+#safely-warning-banner[data-verdict="HIGH RISK"] {
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) scale(0.92) !important;
+  background: linear-gradient(145deg, #c0392b, #96281b) !important;
+  color: #ffffff !important;
+  border: none !important;
+  max-width: 460px !important;
+}
+
+#safely-warning-banner[data-verdict="HIGH RISK"].safely-banner--visible {
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+
+#safely-warning-banner[data-verdict="HIGH RISK"].safely-banner--exit {
+  transform: translate(-50%, -50%) scale(0.92) !important;
+}
+
+/* ── SUSPICIOUS — bottom-right card ─────────────────── */
+#safely-warning-banner[data-verdict="SUSPICIOUS"] {
+  bottom: 28px !important;
+  right: 28px !important;
+  top: auto !important;
+  left: auto !important;
+  background: linear-gradient(145deg, #e67e22, #ca6f1e) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+/* ── Icon row ─────────────────────────────────────────── */
+#safely-warning-banner .safely-banner__icon-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 14px !important;
+}
+
+#safely-warning-banner .safely-banner__shield {
+  font-size: 36px !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+#safely-warning-banner .safely-banner__brand-block {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+#safely-warning-banner .safely-banner__app-name {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  opacity: 0.75 !important;
+  color: inherit !important;
+}
+
+#safely-warning-banner .safely-banner__pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  padding: 3px 10px !important;
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  width: fit-content !important;
+}
+
+/* Dismiss button — top right corner */
+#safely-warning-banner .safely-banner__dismiss {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 50% !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  width: 30px !important;
+  height: 30px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  transition: background 0.15s !important;
+}
+
+#safely-warning-banner .safely-banner__dismiss:hover {
+  background: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* ── Divider ─────────────────────────────────────────── */
+#safely-warning-banner .safely-banner__divider {
+  border: none !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+  margin: 0 0 14px !important;
+}
+
+/* ── Headline ────────────────────────────────────────── */
+#safely-warning-banner .safely-banner__headline {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  margin: 0 0 10px !important;
+  padding: 0 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.3px !important;
+}
+
+/* ── Reasons ─────────────────────────────────────────── */
+#safely-warning-banner .safely-banner__reasons {
+  list-style: none !important;
+  margin: 0 0 14px !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+#safely-warning-banner .safely-banner__reasons li {
+  font-size: 15px !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  padding: 0 0 0 22px !important;
+  position: relative !important;
+  margin: 0 !important;
+  line-height: 1.45 !important;
+}
+
+#safely-warning-banner .safely-banner__reasons li::before {
+  content: '›' !important;
+  position: absolute !important;
+  left: 6px !important;
+  font-size: 20px !important;
+  line-height: 1.05 !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-weight: 700 !important;
+}
+
+/* ── Action instruction ───────────────────────────────── */
+/* Shown as a clear call-to-action block, same color family as the card */
+#safely-warning-banner .safely-banner__action-btn {
+  display: block !important;
+  width: 100% !important;
+  padding: 13px 16px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
+  border-radius: 10px !important;
+  color: #ffffff !important;
+  font-family: inherit !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  cursor: default !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  letter-spacing: 0.1px !important;
+}
+
+/* HIGH RISK — keep white text on the dark red card, stronger border */
+#safely-warning-banner[data-verdict="HIGH RISK"] .safely-banner__action-btn {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  color: #ffffff !important;
+  font-size: 16px !important;
+}
+
+/* ── "Ask Safely" footer trigger ─────────────────────── */
+/* Sits at the bottom of the card, looks like a soft row */
+#safely-warning-banner .safely-banner__ask-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  width: 100% !important;
+  margin-top: 14px !important;
+  padding: 10px 0 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  letter-spacing: 0.3px !important;
+  transition: color 0.15s !important;
+  box-sizing: border-box !important;
+}
+
+#safely-warning-banner .safely-banner__ask-btn:hover {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Active state — conversation is open */
+#safely-warning-banner .safely-banner__ask-btn--active {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 12px !important;
+}
+
+/* ── Inline conversation area ────────────────────────── */
+#safely-warning-banner .safely-conv {
+  margin-top: 14px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Messages list */
+#safely-warning-banner .safely-conv__messages {
+  max-height: 200px !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  margin-bottom: 14px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
+}
+
+/* Chat bubbles */
+#safely-warning-banner .safely-conv__msg {
+  max-width: 88% !important;
+  padding: 8px 12px !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+}
+
+#safely-warning-banner .safely-conv__msg--agent {
+  align-self: flex-start !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-bottom-left-radius: 4px !important;
+}
+
+#safely-warning-banner .safely-conv__msg--user {
+  align-self: flex-end !important;
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-bottom-right-radius: 4px !important;
+}
+
+/* Thinking animation */
+#safely-warning-banner .safely-conv__thinking {
+  align-self: flex-start !important;
+  padding: 9px 13px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-radius: 14px !important;
+  border-bottom-left-radius: 4px !important;
+  font-size: 15px !important;
+  letter-spacing: 3px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  animation: safely-pulse 1.1s ease-in-out infinite !important;
+}
+
+@keyframes safely-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1;   }
+}
+
+/* Mic section — centered below messages */
+#safely-warning-banner .safely-conv__mic-section {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* The mic circle button — uses card's own color language */
+#safely-warning-banner .safely-conv__mic {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  border: 2px solid rgba(255, 255, 255, 0.55) !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s !important;
+  flex-shrink: 0 !important;
+}
+
+#safely-warning-banner .safely-conv__mic:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.32) !important;
+  border-color: rgba(255, 255, 255, 0.8) !important;
+  transform: scale(1.05) !important;
+}
+
+#safely-warning-banner .safely-conv__mic:disabled {
+  opacity: 0.35 !important;
+  cursor: default !important;
+}
+
+/* Listening — bright border + pulsing ring, stays on-card */
+#safely-warning-banner .safely-conv__mic--listening {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  animation: safely-mic-pulse 1.4s ease-in-out infinite !important;
+}
+
+/* Thinking — dimmed, non-interactive */
+#safely-warning-banner .safely-conv__mic--thinking {
+  opacity: 0.4 !important;
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+@keyframes safely-mic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+}
+
+/* Status hint below mic */
+#safely-warning-banner .safely-conv__hint {
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  text-align: center !important;
+  letter-spacing: 0.2px !important;
+  max-width: 200px !important;
+  line-height: 1.3 !important;
+}
