@@ -1,17 +1,21 @@
+Here you go:
+
+---
+
 # Safely — AI-Powered Anti-Phishing Browser Extension
 
-Safely is a Chrome browser extension that protects users — especially seniors and accessibility users — from phishing, scams, and credential-harvesting websites. It combines local heuristic analysis, Google Safe Browsing, Groq LLM reasoning, and ElevenLabs voice alerts to deliver real-time protection with accessible, plain-English warnings.
+Safely is a Chrome browser extension that protects users, especially seniors and accessibility users, from phishing, scams, and credential-harvesting websites. It combines local heuristic analysis, Google Safe Browsing, Groq LLM reasoning, and ElevenLabs voice alerts to deliver real-time protection with accessible, plain-English warnings.
 
 ---
 
 ## Features
 
-- **Real-time phishing detection** — Analyzes every page using 12+ security signals (fake brand impersonation, urgency language, suspicious forms, typosquatting, and more)
-- **Multi-layer verdict pipeline** — Local scoring + Google Safe Browsing + Groq LLM second opinion
-- **Voice warnings** — Spoken alerts via ElevenLabs text-to-speech for SUSPICIOUS and HIGH RISK pages
-- **Voice Q&A** — Ask questions about a page using your microphone; Safely answers aloud
-- **Visual banners** — Non-intrusive warning cards for suspicious pages; full-screen modals for high-risk pages
-- **Popup dashboard** — Click the extension icon to see the current page's risk score and reasons
+- **Real-time phishing detection:** Analyzes every page using 12+ security signals (fake brand impersonation, urgency language, suspicious forms, typosquatting, and more)
+- **Multi-layer verdict pipeline:** Local scoring + Google Safe Browsing + Groq LLM second opinion
+- **Voice warnings:** Spoken alerts via ElevenLabs text-to-speech for SUSPICIOUS and HIGH RISK pages
+- **Voice Q&A:** Ask questions about a page using your microphone and Safely answers out loud
+- **Visual banners:** Non-intrusive warning cards for suspicious pages and full-screen modals for high-risk pages
+- **Popup dashboard:** Click the extension icon to see the current page's risk score and reasons
 
 ---
 
@@ -19,8 +23,8 @@ Safely is a Chrome browser extension that protects users — especially seniors 
 
 | Level | Score | Behavior |
 |-------|-------|----------|
-| SAFE | 0–30 | No warning shown |
-| SUSPICIOUS | 31–59 | Dismissible bottom-right warning card + audio alert |
+| SAFE | 0-30 | No warning shown |
+| SUSPICIOUS | 31-59 | Dismissible bottom-right warning card + audio alert |
 | HIGH RISK | 60+ | Full-screen modal (non-dismissible) + audio alert |
 
 ---
@@ -28,10 +32,10 @@ Safely is a Chrome browser extension that protects users — especially seniors 
 ## Tech Stack
 
 - **TypeScript** + Webpack (Manifest V3)
-- **Groq API** (LLaMA 3.1 8B) — LLM enrichment and voice script generation
-- **Google Safe Browsing API** — Known phishing/malware database lookup
-- **ElevenLabs API** — Text-to-speech voice warnings
-- **Chrome Speech Recognition API** — Voice Q&A input
+- **Groq API** (LLaMA 3.1 8B): LLM enrichment and voice script generation
+- **Google Safe Browsing API:** Known phishing/malware database lookup
+- **ElevenLabs API:** Text-to-speech voice warnings
+- **Chrome Speech Recognition API:** Voice Q&A input
 
 ---
 
@@ -114,11 +118,11 @@ The compiled extension will be output to the `dist/` folder.
 
 3. Click **"Load unpacked"**
 
-4. Select the root of this repository (the folder containing `manifest.json`) — **not** the `dist/` folder
+4. Select the root of this repository (the folder containing `manifest.json`) and not the `dist/` folder
 
 5. The Safely extension will appear in your extensions list with its shield icon
 
-6. Pin the extension to your toolbar by clicking the puzzle piece icon in Chrome's toolbar, then clicking the pin icon next to "Safely"
+6. Pin the extension to your toolbar by clicking the puzzle piece icon in Chrome's toolbar then clicking the pin icon next to "Safely"
 
 > **Note:** If you make changes to the source code and rebuild, click the refresh icon on the extension card at `chrome://extensions` to reload the latest build.
 
@@ -175,9 +179,9 @@ Safely/
 2. The score and features are sent to the background service worker
 3. The background worker runs the full pipeline:
    - Checks Google Safe Browsing for known threats
-   - Sends features to Groq for LLM enrichment and plain-English explanation
+   - Sends features to Groq for LLM enrichment and a plain-English explanation
    - Requests an audio warning from ElevenLabs if the risk is SUSPICIOUS or higher
-4. A verdict is sent back to the content script, which injects the appropriate banner or modal
+4. A verdict is sent back to the content script which injects the appropriate banner or modal
 5. The popup reflects the current page's verdict whenever you click the extension icon
 
 ---
