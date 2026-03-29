@@ -44,12 +44,54 @@ const BRAND_DOMAINS: Record<string, string> = {
   usps:            'usps.com',
   fedex:           'fedex.com',
   ups:             'ups.com',
+  dhl:             'dhl.com',
   irs:             'irs.gov',
   socialsecurity:  'ssa.gov',
+  // Crypto / DeFi
+  kucoin:          'kucoin.com',
+  kraken:          'kraken.com',
+  bybit:           'bybit.com',
+  okx:             'okx.com',
+  metamask:        'metamask.io',
+  // Additional banks / fintech
+  capitalone:      'capitalone.com',
+  usbank:          'usbank.com',
+  schwab:          'schwab.com',
+  fidelity:        'fidelity.com',
+  barclays:        'barclays.com',
+  hsbc:            'hsbc.com',
+  // Tech / SaaS
+  adobe:           'adobe.com',
+  zoom:            'zoom.us',
+  slack:           'slack.com',
+  docusign:        'docusign.com',
+  cloudflare:      'cloudflare.com',
+  // Streaming / subscriptions
+  spotify:         'spotify.com',
+  hulu:            'hulu.com',
+  // Social / messaging
+  telegram:        'telegram.org',
+  whatsapp:        'whatsapp.com',
+  discord:         'discord.com',
+  tiktok:          'tiktok.com',
+  snapchat:        'snapchat.com',
+  // Retail
+  walmart:         'walmart.com',
+  target:          'target.com',
+  bestbuy:         'bestbuy.com',
 };
 
 // ── Urgency / pressure language patterns ─────────────
-const URGENCY_PATTERNS: RegExp[] = [
+//
+// Split into two tiers:
+//   STRONG  — explicitly action-oriented or time-coercive; count alone.
+//   CONTEXTUAL — describe bad events but are neutral without action context;
+//                only counted when at least one STRONG pattern also matched.
+//
+// This prevents phrases like "security breach" or "unauthorized access"
+// (common in neutral news / educational text) from triggering urgency.
+
+const STRONG_URGENCY_PATTERNS: RegExp[] = [
   /\burgent\b/i,
   /\bimmediately\b/i,
   /\bact now\b/i,
@@ -58,20 +100,35 @@ const URGENCY_PATTERNS: RegExp[] = [
   /\bverify (your )?(account|identity|information|email|details)\b/i,
   /\b(account|access).{0,20}(suspend|lock|disable|block)/i,
   /\b(suspend|lock|disable|block).{0,20}(account|access)/i,
-  /\bunusual (activity|sign.?in|login|access)\b/i,
   /\bconfirm (your )?(details|information|account|identity|password)\b/i,
   /\byour account (has been|will be|is being)\b/i,
   /\b(click|tap) here (immediately|now|to verify|to confirm)\b/i,
   /\bwithin 24 hours?\b/i,
   /\bfinal (warning|notice|reminder)\b/i,
-  /\bsecurity (alert|warning|breach|notice)\b/i,
-  /\bunauthorized (access|activity|login|use)\b/i,
-  /\bpassword.{0,20}(compromised|leaked|stolen|exposed)\b/i,
   /\bupdate (your )?(payment|billing|credit card|account)\b/i,
   /\byou have (won|been selected|been chosen)\b/i,
   /\bclaim (your )?(prize|reward|gift|refund)\b/i,
   /\byour (package|parcel|delivery).{0,30}(hold|pending|failed)\b/i,
 ];
+
+// These describe negative events but carry no pressure to act on their own.
+// They only add to the urgency count when a STRONG pattern already matched.
+const CONTEXTUAL_URGENCY_PATTERNS: RegExp[] = [
+  /\bsecurity (alert|warning|breach|notice)\b/i,
+  /\bunauthorized (access|activity|login|use)\b/i,
+  /\bunusual (activity|sign.?in|login|access)\b/i,
+  /\bpassword.{0,20}(compromised|leaked|stolen|exposed)\b/i,
+];
+
+// ── Free / amateur hosting platforms ─────────────────
+// Pages on these hosts that strongly claim a known brand are very likely
+// impersonation (e.g. kucoin-sign-up.weebly.com claiming to be KuCoin).
+const FREE_HOST_DOMAINS = new Set([
+  'weebly.com', 'wix.com', 'wixsite.com', 'blogspot.com', 'wordpress.com',
+  'github.io', 'netlify.app', 'vercel.app', 'glitch.me', 'repl.co',
+  'carrd.co', 'squarespace.com', 'webflow.io', 'sites.google.com',
+  'pages.dev', 'web.app', 'firebaseapp.com', '000webhostapp.com',
+]);
 
 // ── Free/abused TLDs commonly used in phishing ───────
 const SUSPICIOUS_TLDS = new Set([
@@ -128,11 +185,21 @@ export function extractFeatures(): ExtractedFeatures {
     );
 
   // ── Urgency language ──────────────────────────────────
-  const urgencyKeywords = URGENCY_PATTERNS.reduce<string[]>((acc, re) => {
+  // Strong (action-pressure) patterns fire unconditionally.
+  // Contextual (event-descriptor) patterns only count when at least one
+  // strong pattern already matched — prevents "security breach" alone
+  // from triggering urgency on neutral / informational pages.
+  const urgencyKeywords: string[] = [];
+  for (const re of STRONG_URGENCY_PATTERNS) {
     const m = bodyText.match(re);
-    if (m) acc.push(m[0].toLowerCase().slice(0, 60));
-    return acc;
-  }, []);
+    if (m) urgencyKeywords.push(m[0].toLowerCase().slice(0, 60));
+  }
+  if (urgencyKeywords.length > 0) {
+    for (const re of CONTEXTUAL_URGENCY_PATTERNS) {
+      const m = bodyText.match(re);
+      if (m) urgencyKeywords.push(m[0].toLowerCase().slice(0, 60));
+    }
+  }
 
   // ── Security signals ──────────────────────────────────
   const httpsEnabled     = window.location.protocol === 'https:';
@@ -214,6 +281,19 @@ function checkSuspiciousDomain(domain: string): boolean {
 }
 
 // ── Brand impersonation on page content ───────────────
+//
+// Goal: detect pages that *claim* to be a known brand while not being on
+// the brand's real domain — not just pages that *mention* a brand once.
+//
+// Detection tiers for non-SSO brands (most precise → least):
+//   1. Brand in page <title>                        → strong claimed-brand signal
+//   2. Brand in an h1/h2/h3 heading                 → strong claimed-brand signal
+//   3. Brand name in the URL subdomain              → strong (e.g. kucoin-sign-up.weebly.com)
+//   4. Brand appears 5+ times in body on free host  → dominant subject on suspicious host
+//   5. Brand appears 8+ times in body               → very dominant across the whole page
+//
+// Incidental mentions (e.g. "Coinbase is a competitor") do NOT trigger.
+// The old logic triggered on 2+ body occurrences which caused false positives.
 
 // Brands that legitimately appear as SSO buttons on almost every site.
 // For these, require 3+ occurrences before flagging — one mention is normal.
@@ -222,6 +302,22 @@ const SSO_BRANDS = new Set(['google', 'facebook', 'apple', 'instagram', 'twitter
 function detectFakeBrands(domain: string, bodyText: string, title: string): string[] {
   const bodyLower  = bodyText.toLowerCase();
   const titleLower = title.toLowerCase();
+
+  // Heading text for strong claimed-brand check (h1–h3 only — most prominent)
+  const headingText = Array.from(
+    document.querySelectorAll<HTMLElement>('h1, h2, h3'),
+  ).map(el => (el.textContent ?? '').toLowerCase()).join(' ');
+
+  // Determine if this domain is a known free/amateur hosting platform.
+  // e.g. kucoin-sign-up.weebly.com → sld="weebly", tld="com" → "weebly.com" in set.
+  const domainParts = domain.split('.');
+  const hostKey     = domainParts.slice(-2).join('.');
+  const onFreeHost  = FREE_HOST_DOMAINS.has(hostKey);
+
+  // Subdomain string — everything before the registrable sld.tld.
+  // e.g. "kucoin-sign-up" from "kucoin-sign-up.weebly.com".
+  const subdomainStr = domainParts.slice(0, -2).join('.');
+
   const found: string[] = [];
 
   for (const [brand, realDomain] of Object.entries(BRAND_DOMAINS)) {
@@ -232,21 +328,48 @@ function detectFakeBrands(domain: string, bodyText: string, title: string): stri
     if (onRealDomain) continue;
 
     const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`\\b${escaped}\\b`, 'gi');
 
     if (SSO_BRANDS.has(brand)) {
       // SSO brands (google, apple etc.) appear legitimately as login buttons —
       // only flag on 3+ combined occurrences (phishing pages repeat them heavily).
       const combined = `${bodyLower} ${titleLower}`;
-      if ((combined.match(re) ?? []).length >= 3) found.push(brand);
-    } else {
-      // For non-SSO brands: a single mention in <title> is a strong signal
-      // (phishing pages typically set the brand as the page title once).
-      // Also flag on 2+ occurrences anywhere in the page body.
-      const inTitle = re.test(titleLower);
-      re.lastIndex = 0;
-      const bodyCount = (bodyLower.match(re) ?? []).length;
-      if (inTitle || bodyCount >= 2) found.push(brand);
+      if ((combined.match(new RegExp(`\\b${escaped}\\b`, 'gi')) ?? []).length >= 3) {
+        found.push(brand);
+      }
+      continue;
+    }
+
+    // Non-SSO brand: require a "claimed brand" signal, not just incidental mention.
+
+    // Tier 1 — brand in <title>: phishing pages typically title themselves as the brand.
+    if (new RegExp(`\\b${escaped}\\b`, 'i').test(titleLower)) {
+      found.push(brand);
+      continue;
+    }
+
+    // Tier 2 — brand in a main heading (h1/h2/h3).
+    if (new RegExp(`\\b${escaped}\\b`, 'i').test(headingText)) {
+      found.push(brand);
+      continue;
+    }
+
+    // Tier 3 — brand name embedded in the URL subdomain on a free host.
+    // e.g. "kucoin" in "kucoin-sign-up" from "kucoin-sign-up.weebly.com".
+    if (subdomainStr && onFreeHost && new RegExp(`\\b${escaped}\\b`, 'i').test(subdomainStr)) {
+      found.push(brand);
+      continue;
+    }
+
+    // Tier 4 — brand appears heavily in body on a known free hosting platform.
+    const bodyCount = (bodyLower.match(new RegExp(`\\b${escaped}\\b`, 'gi')) ?? []).length;
+    if (bodyCount >= 5 && onFreeHost) {
+      found.push(brand);
+      continue;
+    }
+
+    // Tier 5 — brand completely dominates body text (very high repetition).
+    if (bodyCount >= 8) {
+      found.push(brand);
     }
   }
 
@@ -390,8 +513,12 @@ export function scoreFeatures(features: ExtractedFeatures): RiskAssessment {
     score += 20;
     triggeredSignals.push('fakeBrandDetected');
     const brands = features.fakeBrandKeywords.slice(0, 2).map(capitalise).join(' and ');
-    if (!reasons.some(r => r.includes('pretending'))) {
-      reasons.push(`This page appears to be impersonating ${brands}.`);
+    if (!reasons.some(r => r.includes('pretending') || r.includes('impersonat'))) {
+      if (features.suspiciousDomain) {
+        reasons.push(`This page impersonates ${brands} while using a suspicious or unofficial domain.`);
+      } else {
+        reasons.push(`This page appears to be impersonating ${brands}.`);
+      }
     }
   }
 
