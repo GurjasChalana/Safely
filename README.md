@@ -181,7 +181,3 @@ Safely/
 5. The popup reflects the current page's verdict whenever you click the extension icon
 
 ---
-
-## Built at USF Hackathon
-
-Safely was built as an MVP at a hackathon focused on protecting vulnerable users from online threats.
