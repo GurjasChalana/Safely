@@ -2,7 +2,7 @@
 // Safely · background/safebrowsing.ts
 //
 // Checks a URL against Google's known phishing/malware
-// database. Called only on SUSPICIOUS verdicts.
+// database. Called on every page scan.
 //
 // Returns true  → domain is confirmed malicious (escalate to HIGH RISK)
 // Returns false → domain is clean or API unavailable

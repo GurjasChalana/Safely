@@ -9,6 +9,7 @@ module.exports = {
     background: './src/background/background.ts',
     content:    './src/content/content.ts',
     popup:      './src/popup/popup.ts',
+    offscreen:  './src/background/offscreen.ts',
   },
 
   output: {
@@ -34,7 +35,8 @@ module.exports = {
   plugins: [
     new CopyPlugin({
       patterns: [
-        { from: 'src/popup/popup.html',    to: 'popup.html' },
+        { from: 'src/popup/popup.html',       to: 'popup.html' },
+        { from: 'src/background/offscreen.html', to: 'offscreen.html' },
         { from: 'src/popup/popup.css',     to: 'popup.css' },
         { from: 'src/content/overlay.css', to: 'overlay.css' },
       ],

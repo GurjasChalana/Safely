@@ -6,6 +6,7 @@
 //   content.ts  →  PAGE_SCANNED  →  here
 //   popup.ts    →  SCAN_TAB      →  here → DO_SCAN → content.ts
 //   here        →  SHOW_BANNER   →  content.ts
+//   here        →  PLAY_AUDIO    →  offscreen document
 // ──────────────────────────────────────────────────────
 
 import { RiskAssessment }    from '../shared/types';
@@ -13,7 +14,7 @@ import { SafelyMessage }     from '../shared/messages';
 import { saveAssessment, setScanStatus } from '../shared/storage';
 import { checkDomain }       from './safebrowsing';
 import { explainThreats }    from './gemini';
-import { playVoiceWarning }  from './elevenlabs';
+import { fetchVoiceAudio }   from './elevenlabs';
 import { answerQuestion }    from './convai';
 
 // ── Per-tab abort controllers ─────────────────────────
@@ -29,6 +30,51 @@ function cancelPreviousScan(tabId: number): AbortSignal {
   return controller.signal;
 }
 
+// ── Offscreen audio management ────────────────────────
+// Audio plays via an offscreen document which is exempt
+// from Chrome's autoplay policy. One document is shared
+// for the entire extension session.
+//
+// _offscreenReady is a singleton promise so concurrent
+// callers never race into createDocument() twice.
+
+let _offscreenReady: Promise<void> | undefined;
+
+function ensureOffscreenDocument(): Promise<void> {
+  if (!_offscreenReady) {
+    _offscreenReady = (async () => {
+      const exists = await (chrome.offscreen as any).hasDocument().catch(() => false);
+      if (!exists) {
+        await (chrome.offscreen as any).createDocument({
+          url:           'dist/offscreen.html',
+          reasons:       ['AUDIO_PLAYBACK'],
+          justification: 'Playing audio warnings for detected phishing pages',
+        });
+      }
+    })().catch(err => {
+      console.warn('[Safely] Offscreen document creation failed:', err);
+      _offscreenReady = undefined; // allow retry on next call
+    });
+  }
+  return _offscreenReady ?? Promise.resolve();
+}
+
+// Pre-create the offscreen document when the service worker starts so
+// that STOP_AUDIO works immediately even before the first PLAY_AUDIO.
+ensureOffscreenDocument();
+
+// Signal is checked AFTER the ensureOffscreenDocument await so we
+// don't play audio for a scan that was superseded during that wait.
+async function playAudioOffscreen(base64: string, signal?: AbortSignal): Promise<void> {
+  await ensureOffscreenDocument();
+  if (signal?.aborted) return;
+  chrome.runtime.sendMessage({ type: 'PLAY_AUDIO', base64 }).catch(() => {});
+}
+
+function stopAudioOffscreen(): void {
+  chrome.runtime.sendMessage({ type: 'STOP_AUDIO' }).catch(() => {});
+}
+
 // ── Helpers ───────────────────────────────────────────
 
 function sendToTab(tabId: number, message: SafelyMessage): Promise<void> {
@@ -38,20 +84,6 @@ function sendToTab(tabId: number, message: SafelyMessage): Promise<void> {
       else resolve();
     });
   });
-}
-
-function stopAudioInTab(tabId: number): void {
-  chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const audio = (window as any).__safelyAudio as HTMLAudioElement | undefined;
-      if (audio) {
-        audio.pause();
-        audio.src = '';
-        (window as any).__safelyAudio = undefined;
-      }
-    },
-  }).catch(() => {});
 }
 
 // ── Message router ────────────────────────────────────
@@ -77,7 +109,8 @@ chrome.runtime.onMessage.addListener(
           if (tabId) {
             sendToTab(tabId, { type: 'QUESTION_ANSWER', answer }).catch(() => {});
           }
-          await playVoiceWarning(answer, tabId);
+          const base64 = await fetchVoiceAudio(answer);
+          if (base64) await playAudioOffscreen(base64);
           sendResponse({ ok: true });
         })
         .catch(() => sendResponse({ ok: false }));
@@ -120,7 +153,7 @@ async function handleScan(
 
   // Cancel previous scan's in-flight audio fetch and stop any playing clip
   const signal = tabId ? cancelPreviousScan(tabId) : undefined;
-  if (tabId) stopAudioInTab(tabId);
+  stopAudioOffscreen();
 
   let final = { ...assessment };
 
@@ -167,7 +200,8 @@ async function handleScan(
 
     // Step 4 — ElevenLabs voice warning, cancellable if a newer scan arrives
     if (final.verdict === 'SUSPICIOUS' || final.verdict === 'HIGH RISK') {
-      await playVoiceWarning(enriched.voiceText, tabId, signal);
+      const base64 = await fetchVoiceAudio(enriched.voiceText, signal);
+      if (base64) await playAudioOffscreen(base64, signal);
     }
   }
 }

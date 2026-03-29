@@ -4,11 +4,11 @@
 //
 // Runs on every page at document_idle.
 // Responsibilities:
-//   1. Extract DOM signals (Dev 1's engine)
-//   2. Score them (Dev 1's engine)
-//   3. Send result to service worker for API enrichment
-//   4. Listen for SHOW_BANNER / DO_SCAN from service worker
+//   1. Extract DOM signals
+//   2. Score them and send to service worker for enrichment
+//   3. Listen for SHOW_BANNER / DO_SCAN from service worker
 //
+// Audio playback is handled by the offscreen document.
 // Banner rendering is handled by banner.ts.
 // ──────────────────────────────────────────────────────
 
@@ -20,14 +20,14 @@ import { SafelyMessage } from '../shared/messages';
 // ── Auto-scan on page load ────────────────────────────
 
 function runScan(): void {
-  const features = extractFeatures();
+  const features   = extractFeatures();
   const assessment = scoreFeatures(features);
 
   // Show banner immediately with rule-based result
   showBanner(assessment);
 
   // Send to service worker for API enrichment
-  // (Safe Browsing + Gemini + ElevenLabs)
+  // (Safe Browsing + Groq + ElevenLabs)
   chrome.runtime.sendMessage({
     type: 'PAGE_SCANNED',
     assessment,
@@ -46,7 +46,12 @@ runScan();
 chrome.runtime.onMessage.addListener(
   (message: SafelyMessage, _sender, sendResponse) => {
     if (message.type === 'SHOW_BANNER') {
-      showBanner(message.assessment);
+      // Guard against stale responses from a previous page's scan.
+      // assessment.domain is set from window.location at extraction time.
+      const currentDomain = window.location.hostname.toLowerCase().replace(/^www\./, '');
+      if (message.assessment.domain === currentDomain) {
+        showBanner(message.assessment);
+      }
       sendResponse({ ok: true });
     }
 

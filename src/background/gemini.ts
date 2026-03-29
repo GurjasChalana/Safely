@@ -15,7 +15,7 @@ import { GROQ_API_KEY } from '../config';
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL    = 'llama-3.1-8b-instant';
 
-export interface GeminiEnrichment {
+export interface GroqEnrichment {
   verdict:   'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';  // second-opinion verdict
   reasons:   string[];   // max 3 plain-English reasons
   action:    string;     // one clear instruction
@@ -26,7 +26,7 @@ export async function explainThreats(
   signals:       string[],
   pageSnippet:   string,
   rulesVerdict:  string,
-): Promise<GeminiEnrichment> {
+): Promise<GroqEnrichment> {
   if (!GROQ_API_KEY) {
     console.warn('[Safely] Groq API key not set — using fallback.');
     return fallback(rulesVerdict);
@@ -98,7 +98,7 @@ Return only valid JSON, no markdown or explanation.`;
     }
 
     const text: string = (data.choices as any)?.[0]?.message?.content ?? '';
-    const parsed = JSON.parse(text) as GeminiEnrichment;
+    const parsed = JSON.parse(text) as GroqEnrichment;
 
     if (
       ['SAFE', 'SUSPICIOUS', 'HIGH RISK'].includes(parsed.verdict) &&
@@ -116,7 +116,7 @@ Return only valid JSON, no markdown or explanation.`;
   }
 }
 
-function fallback(verdict: string): GeminiEnrichment {
+function fallback(verdict: string): GroqEnrichment {
   if (verdict === 'HIGH RISK') {
     return {
       verdict: 'HIGH RISK',

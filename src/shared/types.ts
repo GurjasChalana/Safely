@@ -22,7 +22,7 @@ export interface ExtractedFeatures {
   mismatchedLinks: boolean;
   excessivePopups: boolean;
   suspiciousPath: boolean;  // URL path contains phishing-common segments
-  pageSnippet: string; // first 500 chars of body text — sent to Gemini
+  pageSnippet: string; // first 500 chars of body text — sent to Groq
 }
 
 // Output of the scoring engine and the value stored in chrome.storage.session.
@@ -31,6 +31,6 @@ export interface RiskAssessment {
   score: number;          // 0–100
   reasons: string[];      // max 3, plain English
   action: string;         // one clear instruction for the user
-  triggeredSignals: string[]; // internal — used by Gemini for enrichment
+  triggeredSignals: string[]; // internal — used by Groq for enrichment
   domain: string;
 }

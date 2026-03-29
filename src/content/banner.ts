@@ -4,6 +4,9 @@
 // Injects a floating overlay card into the page.
 //   HIGH RISK  → centered modal with dark backdrop
 //   SUSPICIOUS → bottom-right dismissible card
+//
+// Audio playback is handled by the offscreen document —
+// no audio code lives here.
 // ──────────────────────────────────────────────────────
 
 import type { RiskAssessment } from '../shared/types';

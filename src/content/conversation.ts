@@ -3,7 +3,7 @@
 //
 // Inline voice conversation panel — lives inside the
 // banner card. User taps the mic, speaks, transcript is
-// sent to Gemini, answer is shown + spoken by ElevenLabs.
+// sent to Groq, answer is shown + spoken by ElevenLabs.
 // ──────────────────────────────────────────────────────
 
 import type { RiskAssessment } from '../shared/types';

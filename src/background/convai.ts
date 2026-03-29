@@ -40,7 +40,7 @@ export async function answerQuestion(
     { role: 'assistant', content: buildContextMessage(assessment) },
   ];
 
-  // Prior turns — Gemini uses 'model', OpenAI uses 'assistant'
+  // Prior turns — map internal 'model' role to OpenAI/Groq 'assistant'
   const historyMessages = history.map(t => ({
     role:    t.role === 'model' ? 'assistant' : 'user',
     content: t.text,

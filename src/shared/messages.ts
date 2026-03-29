@@ -10,7 +10,7 @@
 
 import { RiskAssessment } from './types';
 
-// One turn in a multi-turn Gemini conversation
+// One turn in a multi-turn Groq conversation
 export interface ConvTurn {
   role: 'user' | 'model';
   text: string;
@@ -35,5 +35,5 @@ export type SafelyMessage =
   // Content script → service worker: user asked a question via the banner chat
   | { type: 'ASK_QUESTION'; question: string; assessment: RiskAssessment; history: ConvTurn[] }
 
-  // Service worker → content script: Gemini's answer (text only — audio via TTS)
+  // Service worker → content script: Groq's answer (text only)
   | { type: 'QUESTION_ANSWER'; answer: string };
