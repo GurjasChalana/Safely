@@ -1,7 +1,3 @@
-Here you go:
-
----
-
 # Safely — AI-Powered Anti-Phishing Browser Extension
 
 Safely is a Chrome browser extension that protects users, especially seniors and accessibility users, from phishing, scams, and credential-harvesting websites. It combines local heuristic analysis, Google Safe Browsing, Groq LLM reasoning, and ElevenLabs voice alerts to deliver real-time protection with accessible, plain-English warnings.
