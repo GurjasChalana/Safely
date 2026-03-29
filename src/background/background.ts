@@ -110,9 +110,10 @@ async function handleScan(
   await saveAssessment(final, url);
 
   // Step 3 — Groq second opinion
-  // Runs for any page scoring ≥ 10 (borderline or above) so AI can catch
-  // what the rules miss, and can upgrade a SAFE verdict if needed.
-  if (final.score >= 10) {
+  // Runs for pages scoring ≥ 25 (at least one real signal) so AI can catch
+  // what the rules miss. Below 25 the rules are too uncertain — Groq would
+  // generate false positives on legitimate sites with login forms etc.
+  if (final.score >= 25) {
     const enriched = await explainThreats(
       final.triggeredSignals,
       pageSnippet,

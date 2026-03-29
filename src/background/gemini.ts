@@ -63,7 +63,7 @@ Rules:
 - Simple everyday language only. No jargon.
 - Never use words like "phishing", "malware", "SSL", or "credentials".
 - Do not start sentences with "I".
-- If unsure, lean toward SUSPICIOUS rather than SAFE.
+- Only upgrade the verdict if the page content clearly shows impersonation, deception, or pressure tactics. Legitimate websites with login forms or account pages should remain SAFE. When in doubt, keep the existing verdict.
 
 Return only valid JSON, no markdown or explanation.`;
 
