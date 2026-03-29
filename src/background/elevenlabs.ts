@@ -1,10 +1,12 @@
 // ──────────────────────────────────────────────────────
 // Safely · background/elevenlabs.ts
 //
-// Converts Gemini's voiceText to speech and plays it in
-// the active tab. Service workers can't play audio, so
-// we encode the response as base64 and inject a player
-// via chrome.scripting.executeScript.
+// Converts voiceText to speech and plays it in the active
+// tab. Service workers can't play audio, so we encode the
+// response as base64 and inject a player via executeScript.
+//
+// Accepts an AbortSignal so the caller can cancel an
+// in-flight request (e.g. when a new scan starts).
 // ──────────────────────────────────────────────────────
 
 import { ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID } from '../config';
@@ -12,8 +14,9 @@ import { ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID } from '../config';
 const ENDPOINT = 'https://api.elevenlabs.io/v1/text-to-speech';
 
 export async function playVoiceWarning(
-  text: string,
-  tabId: number | undefined,
+  text:   string,
+  tabId:  number | undefined,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
     console.warn('[Safely] ElevenLabs keys not configured — skipping voice.');
@@ -30,15 +33,18 @@ export async function playVoiceWarning(
     return;
   }
 
-  console.log(`[Safely] ElevenLabs → sending to TTS: "${text.slice(0, 80)}..."`);
+  if (signal?.aborted) return;
+
+  console.log(`[Safely] ElevenLabs → TTS: "${text.slice(0, 80)}..."`);
 
   try {
     const response = await fetch(`${ENDPOINT}/${ELEVENLABS_VOICE_ID}`, {
       method: 'POST',
+      signal,
       headers: {
-        'xi-api-key': ELEVENLABS_API_KEY,
+        'xi-api-key':   ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg',
+        'Accept':       'audio/mpeg',
       },
       body: JSON.stringify({
         text,
@@ -47,14 +53,19 @@ export async function playVoiceWarning(
       }),
     });
 
+    if (signal?.aborted) return;
+
     if (!response.ok) {
-      const errorBody = await response.text().catch(() => '(no body)');
-      console.error(`[Safely] ElevenLabs API error ${response.status}:`, errorBody);
+      const err = await response.text().catch(() => '(no body)');
+      console.error(`[Safely] ElevenLabs API error ${response.status}:`, err);
       return;
     }
 
     const buffer = await response.arrayBuffer();
-    const bytes  = new Uint8Array(buffer);
+
+    if (signal?.aborted) return;
+
+    const bytes = new Uint8Array(buffer);
 
     // Build base64 in chunks — spreading a large Uint8Array into btoa crashes
     let binary = '';
@@ -68,7 +79,16 @@ export async function playVoiceWarning(
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (b64: string) => {
+        // Stop any clip already playing from a previous scan or Q&A answer
+        const existing = (window as any).__safelyAudio as HTMLAudioElement | undefined;
+        if (existing) {
+          existing.pause();
+          existing.src = '';
+        }
+
         const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
+        (window as any).__safelyAudio = audio;
+
         audio.play().catch((err: Error) => {
           console.warn('[Safely] Autoplay blocked:', err.message,
             '— click anywhere on the page first, then re-scan.');
@@ -77,7 +97,11 @@ export async function playVoiceWarning(
       args: [base64],
     });
 
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.log('[Safely] ElevenLabs request cancelled — new scan started.');
+      return;
+    }
     console.error('[Safely] ElevenLabs failed:', err);
   }
 }

@@ -19,22 +19,33 @@ export async function checkDomain(url: string): Promise<boolean> {
   }
 
   try {
+    const body = JSON.stringify({
+      client: { clientId: 'safely-extension', clientVersion: '0.1.0' },
+      threatInfo: {
+        threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE', 'POTENTIALLY_HARMFUL_APPLICATION'],
+        platformTypes: ['ANY_PLATFORM'],
+        threatEntryTypes: ['URL'],
+        threatEntries: [{ url }],
+      },
+    });
+
+    console.log('[Safely] Safe Browsing → checking URL:', url);
+
     const response = await fetch(`${ENDPOINT}?key=${SAFE_BROWSING_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client: { clientId: 'safely-extension', clientVersion: '0.1.0' },
-        threatInfo: {
-          threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE'],
-          platformTypes: ['ANY_PLATFORM'],
-          threatEntryTypes: ['URL'],
-          threatEntries: [{ url }],
-        },
-      }),
+      body,
     });
 
-    const data = await response.json();
-    return Array.isArray(data.matches) && data.matches.length > 0;
+    const rawBody = await response.text();
+    console.log('[Safely] Safe Browsing ← status:', response.status, '| body:', rawBody.slice(0, 300));
+
+    if (!response.ok) return false;
+
+    const data = JSON.parse(rawBody);
+    const matched = Array.isArray(data.matches) && data.matches.length > 0;
+    if (matched) console.log('[Safely] Safe Browsing ✓ THREAT FOUND:', data.matches);
+    return matched;
   } catch (err) {
     console.warn('[Safely] Safe Browsing check failed:', err);
     return false; // fail safe — never escalate on API error
