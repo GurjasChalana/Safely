@@ -78,7 +78,7 @@ Return only valid JSON, no markdown or explanation.`;
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' },
-        max_tokens: 400,
+        max_tokens: 700,
         temperature: 0.3,
       }),
     });
