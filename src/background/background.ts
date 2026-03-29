@@ -97,14 +97,13 @@ async function handleScan(
 
   let final = { ...assessment };
 
-  // Step 1 — Safe Browsing: upgrade SUSPICIOUS to HIGH RISK if confirmed
-  if (assessment.verdict === 'SUSPICIOUS') {
-    const confirmed = await checkDomain(url);
-    if (confirmed) {
-      final.verdict = 'HIGH RISK';
-      final.score   = Math.max(final.score, 75);
-      final.triggeredSignals = [...final.triggeredSignals, 'safeBrowsingConfirmed'];
-    }
+  // Step 1 — Safe Browsing: check every page against Google's known phishing DB.
+  // Can escalate any verdict to HIGH RISK, not just SUSPICIOUS.
+  const confirmed = await checkDomain(url);
+  if (confirmed) {
+    final.verdict = 'HIGH RISK';
+    final.score   = Math.max(final.score, 75);
+    final.triggeredSignals = [...final.triggeredSignals, 'safeBrowsingConfirmed'];
   }
 
   // Step 2 — Save initial rule-based result so popup renders without waiting for Gemini
