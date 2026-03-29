@@ -2,8 +2,6 @@
 // ──────────────────────────────────────────────────────
 // Safely · background/background.ts  [service worker]
 //
-// Dev 2 owns this file.
-//
 // Message flow:
 //   content.ts  →  PAGE_SCANNED  →  here
 //   popup.ts    →  SCAN_TAB      →  here → DO_SCAN → content.ts
@@ -13,27 +11,68 @@
 import { RiskAssessment }    from '../shared/types';
 import { SafelyMessage }     from '../shared/messages';
 import { saveAssessment, setScanStatus } from '../shared/storage';
-import { checkDomain }       from './safebrowsing';
+import { checkSafeBrowsing } from './safebrowsing';
+import { applySafeBrowsingResult, mergeReasons } from './safeBrowsingRisk';
 import { explainThreats }    from './gemini';
 import { playVoiceWarning }  from './elevenlabs';
+import { answerQuestion } from './convai';
+
+// ── Helpers ───────────────────────────────────────────
+
+function sendToTab(tabId: number, message: SafelyMessage): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, message, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
 
 // ── Message router ────────────────────────────────────
 
 chrome.runtime.onMessage.addListener(
-  (message: SafelyMessage, _sender, sendResponse) => {
+  (message: SafelyMessage, sender, sendResponse) => {
 
     // Content script finished extraction + scoring
     if (message.type === 'PAGE_SCANNED') {
-      handleScan(message.assessment, message.pageSnippet)
+      const tabId = sender.tab?.id;
+      const url   = sender.tab?.url ?? message.assessment.domain;
+      handleScan(tabId, url, message.assessment, message.pageSnippet)
         .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    // User asked a question via the banner chat
+    if (message.type === 'ASK_QUESTION') {
+      const tabId = sender.tab?.id;
+      answerQuestion(message.question, message.assessment, message.history)
+        .then(async answer => {
+          // Send text answer back to content script
+          if (tabId) {
+            sendToTab(tabId, { type: 'QUESTION_ANSWER', answer }).catch(() => {});
+          }
+          // Speak the answer via ElevenLabs TTS
+          await playVoiceWarning(answer, tabId);
+          sendResponse({ ok: true });
+        })
         .catch(() => sendResponse({ ok: false }));
       return true;
     }
 
     // Popup requested a re-scan — tell content script to re-run
     if (message.type === 'SCAN_TAB') {
-      setScanStatus('scanning');
-      chrome.tabs.sendMessage(message.tabId, { type: 'DO_SCAN' } satisfies SafelyMessage);
+      setScanStatus('scanning').catch(() => {});
+
+      sendToTab(message.tabId, { type: 'DO_SCAN' })
+        .catch(() =>
+          // Content script not present — inject it.
+          // The injected script calls runScan() automatically on load.
+          chrome.scripting
+            .executeScript({ target: { tabId: message.tabId }, files: ['dist/content.js'] })
+            .catch(() => setScanStatus('error').catch(() => {}))
+        );
+
       sendResponse({ ok: true });
       return true;
     }
@@ -41,53 +80,69 @@ chrome.runtime.onMessage.addListener(
 );
 
 // ── Scan handler ──────────────────────────────────────
+//
+// Verdict pipeline:
+//   1. Rule-based verdict (from content script)
+//   2. Safe Browsing backend signal
+//   3. Save initial result so popup renders immediately
+//   4. Gemini second opinion for any page with score ≥ 20
+//      — Gemini can upgrade verdict but never downgrade HIGH RISK
+//   5. ElevenLabs voice warning on HIGH RISK
 
 async function handleScan(
-  assessment: RiskAssessment,
+  tabId:       number | undefined,
+  url:         string,
+  assessment:  RiskAssessment,
   pageSnippet: string,
 ): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tabId = tab?.id;
-  const url   = tab?.url ?? assessment.domain;
 
   let final = { ...assessment };
 
-  // Step 1 — verify suspicious domains with Google Safe Browsing
-  if (assessment.verdict === 'SUSPICIOUS') {
-    const confirmed = await checkDomain(url);
-    if (confirmed) {
-      final.verdict = 'HIGH RISK';
-      final.score   = Math.max(final.score, 75);
-      final.triggeredSignals = [...final.triggeredSignals, 'safeBrowsingConfirmed'];
-    }
-  }
+  // Step 1 — Safe Browsing: independent backend-backed malicious URL signal
+  final = applySafeBrowsingResult(final, await checkSafeBrowsing(url));
 
-  // Step 2 — save initial result so popup updates immediately
+  // Step 2 — Save initial rule-based result so popup renders without waiting for Gemini
   await saveAssessment(final, url);
 
-  // Step 3 — enrich with Gemini (better reasons + voice text)
-  if (final.verdict !== 'SAFE') {
+  // Step 3 — Gemini second opinion
+  // Runs for any page scoring ≥ 20 (borderline or above) so AI can catch
+  // what the rules miss, and can upgrade a SAFE verdict if needed.
+  if (final.score >= 20) {
     const enriched = await explainThreats(
       final.triggeredSignals,
       pageSnippet,
       final.verdict,
     );
-    final.reasons = enriched.reasons;
-    final.action  = enriched.action;
 
-    // Update storage with enriched result
-    await saveAssessment(final, url);
+    // Apply Gemini's verdict — it can upgrade but never downgrade HIGH RISK
+    type Verdict = 'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';
+    const rank: Record<Verdict, number> = { 'SAFE': 0, 'SUSPICIOUS': 1, 'HIGH RISK': 2 };
+    const geminiVerdict = enriched.verdict as Verdict;
 
-    // Push updated banner to content script
-    if (tabId) {
-      chrome.tabs.sendMessage(tabId, {
-        type: 'SHOW_BANNER',
-        assessment: final,
-      } satisfies SafelyMessage);
+    if (rank[geminiVerdict] > rank[final.verdict]) {
+      console.log(`[Safely] Gemini upgraded: ${final.verdict} → ${geminiVerdict}`);
+      final.verdict = geminiVerdict;
+      final.score   = Math.max(final.score, rank[geminiVerdict] === 2 ? 65 : 40);
+      final.triggeredSignals = [...final.triggeredSignals, 'geminiUpgrade'];
     }
 
-    // Step 4 — play voice warning on HIGH RISK
-    if (final.verdict === 'HIGH RISK') {
+    // Keep any confirmed Safe Browsing reason, then fill with Gemini's phrasing.
+    if (final.verdict !== 'SAFE') {
+      final.reasons = mergeReasons(final.reasons, enriched.reasons);
+      if (final.safeBrowsing?.safe !== false || final.safeBrowsing.error) {
+        final.action = enriched.action;
+      }
+    }
+
+    // Save enriched result and push updated banner
+    await saveAssessment(final, url);
+
+    if (tabId && final.verdict !== 'SAFE') {
+      sendToTab(tabId, { type: 'SHOW_BANNER', assessment: final }).catch(() => {});
+    }
+
+    // Step 4 — ElevenLabs voice warning on SUSPICIOUS or HIGH RISK
+    if (final.verdict === 'SUSPICIOUS' || final.verdict === 'HIGH RISK') {
       await playVoiceWarning(enriched.voiceText, tabId);
     }
   }

@@ -7,7 +7,7 @@
 // ──────────────────────────────────────────────────────
 
 // Signals extracted from the DOM by the content script.
-// Dev 1 owns the extraction logic in src/scoring/extractor.ts
+// Extraction + scoring logic lives in src/scoring/engine.ts
 export interface ExtractedFeatures {
   domain: string;
   pageUrl: string;
@@ -24,13 +24,35 @@ export interface ExtractedFeatures {
   pageSnippet: string; // first 500 chars of body text — sent to Gemini
 }
 
+export interface SafeBrowsingMatch {
+  threatType?: string;
+  platformType?: string;
+  threatEntryType?: string;
+  threat?: unknown;
+}
+
+export type SafeBrowsingSource = 'google-safe-browsing';
+
+export type SafeBrowsingError =
+  | 'invalid_url'
+  | 'upstream_failure'
+  | 'network_error';
+
+export interface SafeBrowsingResult {
+  safe: boolean;
+  matches: SafeBrowsingMatch[];
+  source: SafeBrowsingSource;
+  error?: SafeBrowsingError;
+}
+
 // Output of the scoring engine and the value stored in chrome.storage.session.
-// Dev 1 owns the scoring logic in src/scoring/engine.ts
 export interface RiskAssessment {
   verdict: 'SAFE' | 'SUSPICIOUS' | 'HIGH RISK';
   score: number;          // 0–100
+  displayScore: number;   // normalized 0–100 shown in the UI
   reasons: string[];      // max 3, plain English
   action: string;         // one clear instruction for the user
   triggeredSignals: string[]; // internal — used by Gemini for enrichment
   domain: string;
+  safeBrowsing?: SafeBrowsingResult;
 }

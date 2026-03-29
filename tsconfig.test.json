@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": ".test-dist",
+    "rootDir": ".",
+    "esModuleInterop": true
+  },
+  "include": [
+    "tests/**/*.ts",
+    "server/**/*.ts",
+    "src/background/safebrowsing.ts",
+    "src/background/safeBrowsingRisk.ts",
+    "src/config.ts",
+    "src/shared/types.ts"
+  ],
+  "exclude": ["dist", "server/dist", "node_modules"]
+}

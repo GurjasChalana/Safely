@@ -1,28 +1,36 @@
 // ──────────────────────────────────────────────────────
 // Safely · background/elevenlabs.ts
 //
-// Converts text to speech via ElevenLabs and plays it
-// in the active tab. Only fires on HIGH RISK verdicts.
-//
-// Service workers cannot play audio directly — we send
-// the audio as base64 to the content script via
-// chrome.scripting.executeScript and play it there.
+// Converts Gemini's voiceText to speech and plays it in
+// the active tab. Service workers can't play audio, so
+// we encode the response as base64 and inject a player
+// via chrome.scripting.executeScript.
 // ──────────────────────────────────────────────────────
 
 import { ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID } from '../config';
 
-const ENDPOINT = `https://api.elevenlabs.io/v1/text-to-speech`;
+const ENDPOINT = 'https://api.elevenlabs.io/v1/text-to-speech';
 
 export async function playVoiceWarning(
   text: string,
   tabId: number | undefined,
 ): Promise<void> {
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
-    console.warn('[Safely] ElevenLabs keys not set — skipping voice warning.');
+    console.warn('[Safely] ElevenLabs keys not configured — skipping voice.');
     return;
   }
 
-  if (!tabId) return;
+  if (!tabId) {
+    console.warn('[Safely] No tabId — cannot inject audio.');
+    return;
+  }
+
+  if (!text?.trim()) {
+    console.warn('[Safely] Empty voiceText — skipping ElevenLabs call.');
+    return;
+  }
+
+  console.log(`[Safely] ElevenLabs → sending to TTS: "${text.slice(0, 80)}..."`);
 
   try {
     const response = await fetch(`${ENDPOINT}/${ELEVENLABS_VOICE_ID}`, {
@@ -30,38 +38,46 @@ export async function playVoiceWarning(
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg',
       },
       body: JSON.stringify({
         text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: { stability: 0.75, similarity_boost: 0.75 },
+        model_id: 'eleven_turbo_v2_5',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
       }),
     });
 
     if (!response.ok) {
-      console.warn('[Safely] ElevenLabs returned', response.status);
+      const errorBody = await response.text().catch(() => '(no body)');
+      console.error(`[Safely] ElevenLabs API error ${response.status}:`, errorBody);
       return;
     }
 
     const buffer = await response.arrayBuffer();
-    const base64 = btoa(
-      String.fromCharCode(...new Uint8Array(buffer)),
-    );
+    const bytes  = new Uint8Array(buffer);
 
-    // Play audio in the content script context (SW can't play audio)
+    // Build base64 in chunks — spreading a large Uint8Array into btoa crashes
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+
+    console.log(`[Safely] ElevenLabs audio ready — ${(bytes.byteLength / 1024).toFixed(1)} KB`);
+
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (b64: string) => {
         const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
-        audio.play().catch(() => {
-          // Autoplay blocked — browser requires a user gesture first.
-          // For demo: clicking the extension icon counts as a gesture.
+        audio.play().catch((err: Error) => {
+          console.warn('[Safely] Autoplay blocked:', err.message,
+            '— click anywhere on the page first, then re-scan.');
         });
       },
       args: [base64],
     });
+
   } catch (err) {
-    // Voice failed silently — visual banner is still showing
-    console.warn('[Safely] ElevenLabs playback failed:', err);
+    console.error('[Safely] ElevenLabs failed:', err);
   }
 }
