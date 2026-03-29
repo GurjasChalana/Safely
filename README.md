@@ -62,21 +62,21 @@ cd safely
 npm install
 ```
 
-### 3. Configure API keys
+### 3. Configure API keys in config.ts
 
-Open `src/background/safebrowsing.ts` and set your Google Safe Browsing API key:
+Open `src/config.ts` and set your Google Safe Browsing API key:
 
 ```typescript
 const API_KEY = "YOUR_GOOGLE_SAFE_BROWSING_API_KEY";
 ```
 
-Open `src/background/gemini.ts` and set your Groq API key:
+Open `src/config.ts` and set your Groq API key:
 
 ```typescript
 const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
 ```
 
-Open `src/background/elevenlabs.ts` and set your ElevenLabs API key:
+Open ``src/config.ts`` and set your ElevenLabs API key:
 
 ```typescript
 const ELEVENLABS_API_KEY = "YOUR_ELEVENLABS_API_KEY";
@@ -94,12 +94,6 @@ npm run dev
 
 ```bash
 npm run build
-```
-
-**For development with auto-rebuild on file changes:**
-
-```bash
-npm run watch
 ```
 
 The compiled extension will be output to the `dist/` folder.
